@@ -1,13 +1,6 @@
 import pandas as pd
-import os
 import argparse
-from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    BitsAndBytesConfig,
-    AutoConfig,
-)
-import accelerate
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 import torch
 import random
 from typing import Dict
@@ -17,6 +10,13 @@ import pickle
 # globals
 responses = {}
 LABEL_MAP = {0: "Reject", 1: "Accept"}
+GENERATION_ARGS = {
+    "max_new_tokens": 10,
+    "temperature": 0.7,
+    "do_sample": True,
+    "top_k": 10,
+}
+MAX_LEN = 450
 
 
 # workflow functions
@@ -25,14 +25,23 @@ def was_correct(decoded: str, entry: Dict[str, int]) -> bool:
 
 
 def to_zero_shot_prompt(entry: Dict[str, str]) -> str:
-    prompt = f"""For the following abstract, please decide whether to accept or reject the paper. Please respond "Accept" or "Reject" before elaborating:\n{entry['abstractText']}\n\nDecision (Accept/Reject):\n"""
+    prompt = (
+        f"""Abstract: {entry['abstractText']}\n\nReviewer decision (Accept/Reject): """
+    )
     return prompt
 
 
 def to_n_shot_prompt(
-    n: int, entry: Dict[str, str], ds, entries, with_system: bool = False
+    n: int, entry: Dict[str, str], ds, entries, with_system: bool = True
 ) -> str:
-    system = "You are a NeurIPS reviewer with many years of experience reviewing papers. You can tell whether a paper will be accepted just by looking at its abstract.\n\n"
+    system = (
+        "You are a NeurIPS reviewer with many years of experience reviewing papers. "
+        + "You can tell whether a paper will be accepted just by looking at its abstract.\n"
+        + 'For example, given "Abstract: This paper is an example rejected abstract", you might respond "Reviewer decision: Reject"\n'
+        + 'As another example, given "Abstract: This paper is an example accepted abstract", you might respond "Reviewer decision: Accept"\n'
+        + "For the following abstract, please decide whether to accept or reject the paper. "
+        + 'Please respond "Accept" or "Reject".\n\n'
+    )
     examples = ""
     for i in range(n):
         examples += (
@@ -50,20 +59,21 @@ def workflow(idx, ds, model, verbose: bool = False) -> bool:
     prompt = ds.iloc[idx]["prompt"]
 
     # encode input, move it to cuda, then generate
-    encoded_input = tokenizer(prompt, return_tensors="pt")
-    encoded_input = {item: val.cuda() for item, val in encoded_input.items()}
-    generation = model.generate(
-        **encoded_input,
-        max_new_tokens=1,
-        do_sample=False,
+    encoded_input = tokenizer(prompt, return_tensors="pt").input_ids.to("cuda")
+    original_length = encoded_input.shape[-1]
+
+    outputs = model.generate(
+        encoded_input,
+        **GENERATION_ARGS,
         pad_token_id=tokenizer.eos_token_id,
     )
+    generated_length = outputs[0].shape[0]
 
     # log the prompt and response if verbose
     if verbose:
-        print(tokenizer.batch_decode(generation)[0])
+        print(tokenizer.decode(outputs[0]))
 
-    decoded = tokenizer.decode(generation[0, -1])
+    decoded = tokenizer.decode(outputs[0, original_length - generated_length :])
     correct = was_correct(decoded, ds.iloc[idx])
 
     if decoded not in responses:
@@ -75,7 +85,7 @@ def workflow(idx, ds, model, verbose: bool = False) -> bool:
             "The model was",
             "correct" if correct else "incorrect",
             " - responded",
-            tokenizer.decode(generation[0, -1]),
+            tokenizer.decode(outputs[0, original_length - generated_length :]),
             "and answer should have been",
             LABEL_MAP[ds.iloc[idx]["accepted"]],
         )
@@ -83,31 +93,18 @@ def workflow(idx, ds, model, verbose: bool = False) -> bool:
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("model", type=str, choices=["falcon", "llama", "mistral", "orca"])
+parser.add_argument("model", type=str, choices=["gemma", "galactica", "llama"])
 parser.add_argument("shot", type=int, choices=[0, 1, 5])
 parser.add_argument(
-    "--device", type=int, help="cuda device to use", required=False, default=-1
-)
-parser.add_argument(
-    "--full",
+    "--quantized",
+    type=str,
+    default="None",
     required=False,
-    type=bool,
-    help="Whether to use full fp16 precision",
-    default=False,
-)
-parser.add_argument(
-    "--system",
-    required=False,
-    type=bool,
-    help="Whether to use system prompts",
-    default=False,
+    choices=["int8", "nf4", "fp4"],
 )
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    if args.device != -1:
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(args.device)
-    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
     # load and merge dataset
     df = pd.read_pickle("./parsed_pdf.h5")
@@ -131,60 +128,62 @@ if __name__ == "__main__":
 
     # load model
     model_map = {
-        "falcon": "tiiuae/falcon-7b-instruct",
-        "llama": "meta-llama/Llama-2-7b-chat-hf",
-        "mistral": "mistralai/Mistral-7B-Instruct-v0.2",
-        "orca": "microsoft/Orca-2-7b",
+        "gemma": "google/gemma-7b-it",
+        "galactica": "GeorgiaTechResearchInstitute/galactica-6.7b-evol-instruct-70k",
+        "llama": "meta-llama/Meta-Llama-3-8B-Instruct",
     }
     model_name = model_map[args.model]
 
-    config = BitsAndBytesConfig(
-        load_in_4bit=True, bnb_4bit_compute_dtype=torch.bfloat16
-    )
-
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    if not args.full:
+    config = None
+    if args.quantized == "int8":
+        config = BitsAndBytesConfig(load_in_8bit=True)
+    elif args.quantized == "fp4":
         config = BitsAndBytesConfig(
-            load_in_4bit=True, bnb_4bit_compute_dtype=torch.bfloat16
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_quant_type="fp4",
         )
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            quantization_config=config,  # device_map="auto"
+    elif args.quantized == "nf4":
+        config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_quant_type="nf4",
         )
-    else:
-        config = AutoConfig.from_pretrained(model_name)
-        with accelerate.init_empty_weights():
-            model = AutoModelForCausalLM.from_config(
-                config=config, torch_dtype=torch.bfloat16
-            )
-        model.tie_weights()
-        dev_map = accelerate.infer_auto_device_map(
-            model,
-            max_memory={0: "11GB", 1: "7GB"},
-            no_split_module_classes=[
-                "LlamaDecoderLayer",
-                "MistralDecoderLayer",
-                "FalconDecoderLayer",
-            ],
-        )
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name, torch_dtype=torch.bfloat16, device_map=dev_map
-        )
+
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        torch_dtype=torch.bfloat16,
+        device_map="sequential",
+        quantization_config=config,
+    )
 
     # setup
     n_examples = args.shot
     entries = random.choices(list(range(len(final_df))), k=n_examples)
     final_df["prompt"] = final_df["abstractText"].map(
         lambda e: to_n_shot_prompt(
-            n_examples, {"abstractText": e}, final_df, entries, args.system
+            n_examples,
+            {"abstractText": e},
+            final_df,
+            entries,
         )
     )
+    del final_df["abstractText"]
+    final_df["valid"] = [
+        tokenizer(prompt, return_tensors="pt").input_ids.shape[1] < MAX_LEN
+        for prompt in final_df["prompt"]
+    ]
 
     # run experiment
     num_correct = 0
+    n_invalid = 0
     for idx in (prog := tqdm(range(len(final_df)))):
         if idx in entries:
             continue  # don't include items that were in the examples
+        if not final_df["valid"].iloc[idx]:
+            n_invalid += 1
+            continue  # don't include items that are too long due to mistakes in dataset
 
         correct = workflow(idx, final_df, model)
         if correct:
@@ -192,19 +191,18 @@ if __name__ == "__main__":
         prog.set_postfix_str(f"acc: {num_correct/(idx+1):.3f}")
 
     # log results
-    tail = "" if not args.full else "_full"
-    tail += "" if not args.system else "_system"
     pickle.dump(
         responses,
         open(
-            f"{model_name[model_name.index('/')+1:]}_{n_examples}responses{tail}.pk",
+            f"{model_name[model_name.index('/')+1:]}_{n_examples}responses.pk",
             "wb",
         ),
     )
-    with open(f"{n_examples}_shot{tail}.txt", "a") as file:
-        file.write(f"{model_name} : {num_correct}/{len(final_df)-len(entries)}\n")
+    with open(f"{n_examples}_shot.txt", "a") as file:
+        file.write(
+            f"{model_name} : {num_correct}/{len(final_df)-len(entries)-n_invalid}\n"
+        )
 
     # print results up till now
-    with open(f"{n_examples}_shot{tail}.txt", "r") as file:
+    with open(f"{n_examples}_shot.txt", "r") as file:
         print(file.read())
-
