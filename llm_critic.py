@@ -16,6 +16,17 @@ GENERATION_ARGS = {
     "do_sample": True,
     "top_k": 10,
 }
+CHAT_TEMPLATES = {
+    "llama": None,
+    "gemma": """{{ bos_token }}{% if messages[0]['role'] == 'system' %}{{ raise_exception('System role not supported') }}{% endif %}{% for message in messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if (message['role'] == 'assistant') %}{% set role = 'model' %}{% else %}{% set role = message['role'] %}{% endif %}{{ '<start_of_turn>' + role + '\n' + message['content'] | trim + '<end_of_turn>\n' }}{% endfor %}{% if add_generation_prompt %}{{'<start_of_turn>model\nReviewer decision:'}}{% endif %}""",
+    "galactica": """{{ 'Below is an instruction that describes a task. Write a response that appropriately completes the request.\n\n' }}{% for message in messages %}{% if message['role'] == 'user' %}{{ '### Instruction:\n' + message['content'].strip() + '\n\n' }}{% elif message['role'] == 'assistant' %}{{ '### Response:'  + message['content'] + '\n\n' }}{% endif %}{% endfor %}{% if add_generation_prompt %}{{ '### Response: Reviewer decision:' }}{% endif %}""",
+}
+MODEL_MAP = {
+    "gemma": "google/gemma-7b-it",
+    "galactica": "GeorgiaTechResearchInstitute/galactica-6.7b-evol-instruct-70k",
+    "llama": "meta-llama/Meta-Llama-3-8B-Instruct",
+}
+SYSTEM_SUPPORTED = {"llama": True, "galactica": False, "gemma": False}
 MAX_LEN = 450
 
 
@@ -25,22 +36,18 @@ def was_correct(decoded: str, entry: Dict[str, int]) -> bool:
 
 
 def to_zero_shot_prompt(entry: Dict[str, str]) -> str:
-    prompt = (
-        f"""Abstract: {entry['abstractText']}\n\nReviewer decision (Accept/Reject): """
-    )
+    prompt = f"""Please determine whether NeurIPS should accept the following paper based on its abstract.\n\nAbstract: {entry['abstractText']}"""
     return prompt
 
 
 def to_n_shot_prompt(
-    n: int, entry: Dict[str, str], ds, entries, with_system: bool = True
+    n: int, entry: Dict[str, str], ds, entries, supports_system: bool
 ) -> str:
     system = (
         "You are a NeurIPS reviewer with many years of experience reviewing papers. "
         + "You can tell whether a paper will be accepted just by looking at its abstract.\n"
         + 'For example, given "Abstract: This paper is an example rejected abstract", you might respond "Reviewer decision: Reject"\n'
         + 'As another example, given "Abstract: This paper is an example accepted abstract", you might respond "Reviewer decision: Accept"\n'
-        + "For the following abstract, please decide whether to accept or reject the paper. "
-        + 'Please respond "Accept" or "Reject".\n\n'
     )
     examples = ""
     for i in range(n):
@@ -50,9 +57,20 @@ def to_n_shot_prompt(
             + "\n\n"
         )
     prompt = to_zero_shot_prompt(entry)
-    if with_system:
-        return system + examples + prompt
-    return examples + prompt
+    if supports_system:
+        return tokenizer.apply_chat_template(
+            [
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt},
+            ],
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+    return tokenizer.apply_chat_template(
+        [{"role": "user", "content": system + "\n\n" + prompt}],
+        tokenize=False,
+        add_generation_prompt=True,
+    )
 
 
 def workflow(idx, ds, model, verbose: bool = False) -> bool:
@@ -67,13 +85,12 @@ def workflow(idx, ds, model, verbose: bool = False) -> bool:
         **GENERATION_ARGS,
         pad_token_id=tokenizer.eos_token_id,
     )
-    generated_length = outputs[0].shape[0]
 
     # log the prompt and response if verbose
     if verbose:
         print(tokenizer.decode(outputs[0]))
 
-    decoded = tokenizer.decode(outputs[0, original_length - generated_length :])
+    decoded = tokenizer.decode(outputs[0, original_length:])
     correct = was_correct(decoded, ds.iloc[idx])
 
     if decoded not in responses:
@@ -85,7 +102,7 @@ def workflow(idx, ds, model, verbose: bool = False) -> bool:
             "The model was",
             "correct" if correct else "incorrect",
             " - responded",
-            tokenizer.decode(outputs[0, original_length - generated_length :]),
+            tokenizer.decode(outputs[0, original_length:]),
             "and answer should have been",
             LABEL_MAP[ds.iloc[idx]["accepted"]],
         )
@@ -93,7 +110,7 @@ def workflow(idx, ds, model, verbose: bool = False) -> bool:
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("model", type=str, choices=["gemma", "galactica", "llama"])
+parser.add_argument("model", type=str, choices=[model for model in MODEL_MAP.keys()])
 parser.add_argument("shot", type=int, choices=[0, 1, 5])
 parser.add_argument(
     "--quantized",
@@ -126,15 +143,13 @@ if __name__ == "__main__":
     del final_df["references"]
     final_df["accepted"] = final_df["accepted"].astype(int)
 
-    # load model
-    model_map = {
-        "gemma": "google/gemma-7b-it",
-        "galactica": "GeorgiaTechResearchInstitute/galactica-6.7b-evol-instruct-70k",
-        "llama": "meta-llama/Meta-Llama-3-8B-Instruct",
-    }
-    model_name = model_map[args.model]
-
+    # apply chat template, if necessary
+    model_name = MODEL_MAP[args.model]
     tokenizer = AutoTokenizer.from_pretrained(model_name)
+    if CHAT_TEMPLATES[args.model] is not None:
+        tokenizer.chat_template = CHAT_TEMPLATES[args.model]
+
+    # load model
     config = None
     if args.quantized == "int8":
         config = BitsAndBytesConfig(load_in_8bit=True)
@@ -150,7 +165,6 @@ if __name__ == "__main__":
             bnb_4bit_compute_dtype=torch.bfloat16,
             bnb_4bit_quant_type="nf4",
         )
-
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         torch_dtype=torch.bfloat16,
@@ -167,6 +181,7 @@ if __name__ == "__main__":
             {"abstractText": e},
             final_df,
             entries,
+            supports_system=SYSTEM_SUPPORTED[args.model],
         )
     )
     del final_df["abstractText"]
