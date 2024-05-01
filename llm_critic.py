@@ -17,7 +17,7 @@ GENERATION_ARGS = {
     "top_k": 10,
 }
 CHAT_TEMPLATES = {
-    "llama": None,
+    "llama": "{% set loop_messages = messages %}{% for message in loop_messages %}{% set content = '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n'+ message['content'] | trim + '<|eot_id|>' %}{% if loop.index0 == 0 %}{% set content = bos_token + content %}{% endif %}{{ content }}{% endfor %}{% if add_generation_prompt %}{{ '<|start_header_id|>assistant<|end_header_id|>\n\nReviewer decision:' }}{% endif %}",
     "gemma": """{{ bos_token }}{% if messages[0]['role'] == 'system' %}{{ raise_exception('System role not supported') }}{% endif %}{% for message in messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if (message['role'] == 'assistant') %}{% set role = 'model' %}{% else %}{% set role = message['role'] %}{% endif %}{{ '<start_of_turn>' + role + '\n' + message['content'] | trim + '<end_of_turn>\n' }}{% endfor %}{% if add_generation_prompt %}{{'<start_of_turn>model\nReviewer decision:'}}{% endif %}""",
     "galactica": """{{ 'Below is an instruction that describes a task. Write a response that appropriately completes the request.\n\n' }}{% for message in messages %}{% if message['role'] == 'user' %}{{ '### Instruction:\n' + message['content'].strip() + '\n\n' }}{% elif message['role'] == 'assistant' %}{{ '### Response:'  + message['content'] + '\n\n' }}{% endif %}{% endfor %}{% if add_generation_prompt %}{{ '### Response: Reviewer decision:' }}{% endif %}""",
 }
