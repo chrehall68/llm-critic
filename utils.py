@@ -14,12 +14,12 @@ random.seed(2024)
 # functions
 def softmax_results(inputs: torch.Tensor, model: torch.nn.Module):
     result = model(inputs.cuda()).logits
-    return torch.nn.functional.softmax(result[:, -1], dim=-1).cpu()
+    return torch.nn.functional.softmax(result[:, -1], dim=-1).cuda()
 
 
 def softmax_results_embeds(embds: torch.Tensor, model: torch.nn.Module):
     result = model(inputs_embeds=embds.cuda()).logits
-    return torch.nn.functional.softmax(result[:, -1], dim=-1).cpu()
+    return torch.nn.functional.softmax(result[:, -1], dim=-1).cuda()
 
 
 def summarize_attributions(attributions):
