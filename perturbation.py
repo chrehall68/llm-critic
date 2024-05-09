@@ -101,10 +101,15 @@ if __name__ == "__main__":
     n_perturbation_samples = args.n_perturbation_samples
     n_samples = args.n_samples
 
+    # load dataset
     ds = utils.load_dataset()
 
-    # load model
+    # apply chat template
     tokenizer = AutoTokenizer.from_pretrained(MODEL_MAP[model_name])
+    if CHAT_TEMPLATES[model_name] is not None:
+        tokenizer.chat_template = CHAT_TEMPLATES[model_name]
+
+    # load model
     config = None
     if args.quantized == "int8":
         config = BitsAndBytesConfig(load_in_8bit=True)

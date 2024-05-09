@@ -51,9 +51,13 @@ if __name__ == "__main__":
     # load and merge dataset
     ds = utils.load_dataset()
 
-    # load model
+    # load chat template
     model_name = args.model
     tokenizer = AutoTokenizer.from_pretrained(MODEL_MAP[model_name])
+    if CHAT_TEMPLATES[model_name] is not None:
+        tokenizer.chat_template = CHAT_TEMPLATES[model_name]
+
+    # load model
     config = None
     if args.quantized == "int8":
         config = BitsAndBytesConfig(load_in_8bit=True)
