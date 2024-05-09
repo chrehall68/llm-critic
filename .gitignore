@@ -1,2 +1,15 @@
+# data files
 parsed_pdf.h5
 reviews_pdf.h5
+
+# output files
+html/
+pt/
+*.out 
+
+# slurm files
+*.launcher
+
+# temporary testing files
+*.ipynb
+

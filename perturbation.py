@@ -1,6 +1,6 @@
 import argparse
 import captum.attr as attr
-from captum._utils.models.linear_model import SkLearnLinearRegression
+from captum._utils.models.linear_model import SkLearnLasso
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 import torch
 import torch.nn.functional as F
@@ -156,19 +156,16 @@ if __name__ == "__main__":
         # get tokens for later
         tokens = tokenizer(prompt, return_tensors="pt").input_ids.to("cuda")
 
-        # calculate which label the model responds w/ (so we can evaluate integrated gradients for that label)
-        outputs = model.generate(
-            tokens,
-            **GENERATION_ARGS,
-            pad_token_id=tokenizer.eos_token_id,
-        )
-        decoded = tokenizer.decode(outputs[0, tokens.shape[-1] :])
+        # calculate which label the model responds w/ (so we can perturb for that label)
+        with torch.no_grad():
+            outputs = model(tokens).logits[0, -1]
 
-        if "accept" in decoded.lower():
+        if torch.argmax(outputs) == TOKEN_MAP[model_name][ACCEPT]:
             label = ACCEPT
-        elif "reject" in decoded.lower():
+        elif torch.argmax(outputs) == TOKEN_MAP[model_name][REJECT]:
             label = REJECT
         else:
+            print("failed!")
             continue  # try again
 
         # run experiment
@@ -177,7 +174,9 @@ if __name__ == "__main__":
         if experiment_type == LIME:
             attributer = attr.LimeBase(
                 softmax_results,
-                interpretable_model=SkLearnLinearRegression(),
+                interpretable_model=SkLearnLasso(
+                    alpha=3e-4, selection="cyclic", max_iter=5000
+                ),
                 similarity_func=exp_embedding_cosine_distance,
                 perturb_func=bernoulli_perturb,
                 perturb_interpretable_space=True,

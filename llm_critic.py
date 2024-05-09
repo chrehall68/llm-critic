@@ -1,9 +1,8 @@
-import pandas as pd
 import argparse
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 import torch
 import random
-from typing import Dict
+from typing import Dict, List
 from tqdm import tqdm
 import pickle
 from constants import *
@@ -62,52 +61,76 @@ def to_n_shot_prompt(
     )
 
 
-def workflow(idx, ds, model, verbose: bool = False) -> bool:
-    prompt = ds.iloc[idx]["prompt"]
+def workflow(idxs: List[int], ds, model, verbose: bool = False) -> int:
+    prompts = list(ds.iloc[idxs]["prompt"])
 
     # encode input, move it to cuda, then generate
-    encoded_input = tokenizer(prompt, return_tensors="pt").input_ids.to("cuda")
-    original_length = encoded_input.shape[-1]
+    encoded_input = tokenizer(prompts, return_tensors="pt", padding=True).to("cuda")
+    original_length = encoded_input.input_ids.shape[-1]
 
     outputs = model.generate(
-        encoded_input,
-        **GENERATION_ARGS,
+        encoded_input.input_ids,
+        attention_mask=encoded_input.attention_mask,
         pad_token_id=tokenizer.eos_token_id,
+        **GENERATION_ARGS,
     )
 
-    # log the prompt and response if verbose
-    if verbose:
-        print(tokenizer.decode(outputs[0]))
+    n_correct = 0
+    for item_num, idx in enumerate(idxs):
+        # log the prompt and response if verbose
+        if verbose:
+            print(tokenizer.decode(outputs[item_num]))
 
-    decoded = tokenizer.decode(outputs[0, original_length:])
-    correct = was_correct(decoded, ds.iloc[idx])
+        decoded = tokenizer.decode(outputs[item_num, original_length:])
+        correct = was_correct(decoded, ds.iloc[idx])
 
-    if decoded not in responses:
-        responses[decoded] = []
-    responses[decoded].append(idx)
+        if decoded not in responses:
+            responses[decoded] = []
+        responses[decoded].append(idx)
+        n_correct += 1
 
-    if verbose:
-        print(
-            "The model was",
-            "correct" if correct else "incorrect",
-            " - responded",
-            tokenizer.decode(outputs[0, original_length:]),
-            "and answer should have been",
-            LABEL_MAP[ds.iloc[idx]["accepted"]],
-        )
-    return correct
+        if verbose:
+            print(
+                "The model was",
+                "correct" if correct else "incorrect",
+                " - responded",
+                tokenizer.decode(outputs[item_num, original_length:]),
+                "and answer should have been",
+                LABEL_MAP[ds.iloc[idx]["accepted"]],
+            )
+    return n_correct
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("model", type=str, choices=[model for model in MODEL_MAP.keys()])
 parser.add_argument("shot", type=int, choices=[0, 1, 5])
 parser.add_argument(
+    "id", type=int, help="the shard (0 <= id < splits) of the dataset to evaluate on"
+)
+parser.add_argument("split", type=int, help="How many shards to split the dataset into")
+parser.add_argument(
+    "--batch_size",
+    type=int,
+    default=5,
+    required=False,
+    help="how many samples to process in a batch",
+)
+parser.add_argument(
     "--quantized",
     type=str,
     default="None",
     required=False,
     choices=["int8", "nf4", "fp4"],
+    help="the quantization method/dtype to use, defaults to None",
 )
+parser.add_argument(
+    "--dtype",
+    type="str",
+    choices=["bfloat16", "float16"],
+    default="float16",
+    help="the compute dtype to use",
+)
+
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -117,9 +140,11 @@ if __name__ == "__main__":
 
     # apply chat template, if necessary
     model_name = MODEL_MAP[args.model]
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
     if CHAT_TEMPLATES[args.model] is not None:
         tokenizer.chat_template = CHAT_TEMPLATES[args.model]
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token_id = tokenizer.eos_token_id
 
     # load model
     config = None
@@ -163,31 +188,55 @@ if __name__ == "__main__":
         for prompt in ds["prompt"]
     ]
 
+    # calculate split sizes
+    split_sizes = [len(ds) // args.split for _ in range(args.split)]
+    remainder = len(ds) % args.split
+    for i in range(args.split):
+        split_sizes[i] += 1 if remainder > 0 else 0
+        remainder -= 1
+
+    # convert split sizes into start,end
+    split_starts = split_sizes.copy()
+    for i in range(1, args.split):
+        split_starts[i] += split_starts[i - 1]
+    split_starts.insert(0, 0)
+    start, end = split_starts[args.id], split_starts[args.id + 1]
+    assert start < end and end - start == split_sizes[args.id]
+
     # run experiment
     num_correct = 0
     n_invalid = 0
-    for idx in (prog := tqdm(range(len(ds)))):
+    used_entries = 0
+    cur_lst = []
+    for idx in (prog := tqdm(range(start, end))):
         if idx in entries:
+            used_entries += 1
             continue  # don't include items that were in the examples
         if not ds["valid"].iloc[idx]:
             n_invalid += 1
             continue  # don't include items that are too long due to mistakes in dataset
 
-        correct = workflow(idx, ds, model)
-        if correct:
-            num_correct += 1
-        prog.set_postfix_str(f"acc: {num_correct/(idx+1):.3f}")
+        cur_lst.append(idx)
+        if len(cur_lst) >= args.batch_size:  # only compute when batch is full
+            num_correct += workflow(cur_lst, ds, model)
+            cur_lst.clear()
+        prog.set_postfix_str(f"acc: {num_correct/(idx-start+1):.3f}")
+    if len(cur_lst) > 0:  # handle any leftovers
+        num_correct += workflow(cur_lst, ds, model)
+        cur_lst.clear()
 
     # log results
     pickle.dump(
         responses,
         open(
-            f"{model_name[model_name.index('/')+1:]}_{n_examples}responses.pk",
+            f"{model_name[model_name.index('/')+1:]}_{n_examples}_{args.id}responses.pk",
             "wb",
         ),
     )
     with open(f"{n_examples}_shot.txt", "a") as file:
-        file.write(f"{model_name} : {num_correct}/{len(ds)-len(entries)-n_invalid}\n")
+        file.write(
+            f"{model_name} {args.id}: {num_correct}/{len(ds)-used_entries-n_invalid}\n"
+        )
 
     # print results up till now
     with open(f"{n_examples}_shot.txt", "r") as file:

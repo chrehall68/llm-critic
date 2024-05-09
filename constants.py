@@ -1,7 +1,7 @@
 # constants
 LABEL_MAP = {0: "Reject", 1: "Accept"}
 GENERATION_ARGS = {
-    "max_new_tokens": 10,
+    "max_new_tokens": 4,
     "temperature": 0.7,
     "do_sample": True,
     "top_k": 10,

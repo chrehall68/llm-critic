@@ -1,5 +1,5 @@
 import random
-from typing import Any
+from typing import Any, Union, List
 import torch
 from dataclasses import dataclass
 from IPython.display import HTML
@@ -36,7 +36,7 @@ class CustomDataRecord:
     attr_class: str
     attr_prob: torch.Tensor
     attr_score: Any
-    raw_input_ids: Any | list[str]
+    raw_input_ids: Union[Any, List[str]]
     convergence_delta: Any
 
 
@@ -55,7 +55,7 @@ def _get_color(attr):
 
 
 def visualize_text(
-    datarecords: list[CustomDataRecord], legend: bool = True
+    datarecords: List[CustomDataRecord], legend: bool = True
 ) -> "HTML":  # In quotes because this type doesn't exist in standalone mode
     dom = ["<table width: 100%>"]
     if datarecords[0].convergence_delta is not None:
