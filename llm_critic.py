@@ -125,7 +125,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--dtype",
-    type="str",
+    type=str,
     choices=["bfloat16", "float16"],
     default="float16",
     help="the compute dtype to use",
