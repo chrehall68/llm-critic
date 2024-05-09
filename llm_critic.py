@@ -164,7 +164,7 @@ if __name__ == "__main__":
         )
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        torch_dtype=torch.bfloat16,
+        torch_dtype=(torch.bfloat16 if args.dtype == "bfloat16" else torch.float16),
         device_map="sequential",
         quantization_config=config,
     )
