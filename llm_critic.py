@@ -235,7 +235,7 @@ if __name__ == "__main__":
     )
     with open(f"{n_examples}_shot.txt", "a") as file:
         file.write(
-            f"{model_name} {args.id}: {num_correct}/{len(ds)-used_entries-n_invalid}\n"
+            f"{model_name} {args.id}: {num_correct}/{(end-start)-used_entries-n_invalid}, n_invalid: {n_invalid}, true_ds_len: {len(ds)}\n"
         )
 
     # print results up till now
