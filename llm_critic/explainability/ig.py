@@ -4,9 +4,9 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 import torch
 import random
 from argparse import ArgumentParser
-import llm_critic
-import utils
-from constants import *
+import llm_critic.core.llm_critic as llm_critic
+import llm_critic.core.utils as utils
+from llm_critic.core.constants import *
 
 
 # set up argument parser

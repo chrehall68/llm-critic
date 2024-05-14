@@ -5,8 +5,8 @@ import random
 from typing import Dict, List
 from tqdm import tqdm
 import pickle
-from constants import *
-from utils import load_dataset
+from llm_critic.core.constants import *
+from llm_critic.core.utils import load_dataset
 
 
 # globals
@@ -21,6 +21,10 @@ def was_correct(decoded: str, entry: Dict[str, int]) -> bool:
 def to_zero_shot_prompt(entry: Dict[str, str]) -> str:
     prompt = f"""Please determine whether NeurIPS should accept the following paper based on its abstract.\n\nAbstract: {entry['abstractText']}"""
     return prompt
+
+
+def to_example(entry: Dict[str, str]) -> str:
+    return f"""Here's an example of a{'n accepted' if entry['accepted'] == ACCEPT else ' rejected'} abstract:\nAbstract: {entry['abstractText']}\n\n"""
 
 
 def to_n_shot_prompt(
@@ -39,12 +43,9 @@ def to_n_shot_prompt(
     )
     examples = ""
     for i in range(n):
-        examples += (
-            to_zero_shot_prompt(ds.iloc[entries[i]])
-            + LABEL_MAP[ds.iloc[entries[i]]["accepted"]]
-            + "\n\n"
-        )
-    prompt = to_zero_shot_prompt(entry)
+        examples += to_example(ds.iloc[entries[i]])
+
+    prompt = examples + to_zero_shot_prompt(entry)
     if supports_system:
         return tokenizer.apply_chat_template(
             [
@@ -61,7 +62,7 @@ def to_n_shot_prompt(
     )
 
 
-def workflow(idxs: List[int], ds, model, verbose: bool = False) -> int:
+def grade(idxs: List[int], ds, tokenizer, model, verbose: bool = False) -> int:
     prompts = list(ds.iloc[idxs]["prompt"])
 
     # encode input, move it to cuda, then generate
@@ -87,7 +88,8 @@ def workflow(idxs: List[int], ds, model, verbose: bool = False) -> int:
         if decoded not in responses:
             responses[decoded] = []
         responses[decoded].append(idx)
-        n_correct += 1
+        if correct:
+            n_correct += 1
 
         if verbose:
             print(
@@ -182,7 +184,6 @@ if __name__ == "__main__":
             tokenizer=tokenizer,
         )
     )
-    del ds["abstractText"]
     ds["valid"] = [
         tokenizer(prompt, return_tensors="pt").input_ids.shape[1] < MAX_LEN
         for prompt in ds["prompt"]
@@ -218,11 +219,11 @@ if __name__ == "__main__":
 
         cur_lst.append(idx)
         if len(cur_lst) >= args.batch_size:  # only compute when batch is full
-            num_correct += workflow(cur_lst, ds, model)
+            num_correct += grade(cur_lst, ds, tokenizer, model)
             cur_lst.clear()
-        prog.set_postfix_str(f"acc: {num_correct/(idx-start+1):.3f}")
+        prog.set_postfix_str(f"acc: {num_correct/(idx-start+1-used_entries):.3f}")
     if len(cur_lst) > 0:  # handle any leftovers
-        num_correct += workflow(cur_lst, ds, model)
+        num_correct += grade(cur_lst, ds, tokenizer, model)
         cur_lst.clear()
 
     # log results

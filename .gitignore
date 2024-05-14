@@ -6,6 +6,8 @@ reviews_pdf.h5
 html/
 pt/
 *.out 
+*.txt
+results/
 
 # slurm files
 *.launcher
@@ -13,3 +15,5 @@ pt/
 # temporary testing files
 *.ipynb
 
+# package files
+*.egg-info/

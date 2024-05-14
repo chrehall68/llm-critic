@@ -17,7 +17,7 @@ MODEL_MAP = {
     "llama": "meta-llama/Meta-Llama-3-8B-Instruct",
 }
 SYSTEM_SUPPORTED = {"llama": True, "galactica": False, "gemma": False}
-MAX_LEN = 450
+MAX_LEN = 2000
 LAYER_MAP = {
     "llama": (lambda model: model.model, "embed_tokens"),
     "gemma": (lambda model: model.model, "embed_tokens"),
