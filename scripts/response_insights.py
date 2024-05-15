@@ -22,7 +22,7 @@ def fn(d):
 
 
 if __name__ == "__main__":
-    data_dir = "./critic/data/"
+    data_dir = "./processed/"
     for file in os.listdir(data_dir):
         if not file.endswith(".pk"):
             continue

@@ -1,3 +1,7 @@
+"""
+Runs Integrated Gradients
+"""
+
 import captum.attr as attr
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 import torch

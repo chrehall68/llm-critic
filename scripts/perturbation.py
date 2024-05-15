@@ -1,3 +1,7 @@
+"""
+Runs perturbation-based explainability methods (SHAP, LIME)
+"""
+
 import argparse
 import captum.attr as attr
 from captum._utils.models.linear_model import SkLearnLasso

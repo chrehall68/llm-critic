@@ -1,3 +1,7 @@
+"""
+Combines interpretability outputs for a sample into a single .html file
+"""
+
 import os
 
 # formatting constants

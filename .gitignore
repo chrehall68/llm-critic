@@ -8,6 +8,7 @@ pt/
 *.out 
 *.txt
 results/
+processed/
 
 # slurm files
 *.launcher
