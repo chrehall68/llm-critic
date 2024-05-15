@@ -6,7 +6,6 @@ from tqdm import tqdm
 from pandas import DataFrame
 
 
-# workflow functions
 def was_correct(decoded: str, entry: Dict[str, int]) -> bool:
     return LABEL_MAP[entry["accepted"]].lower() in decoded.lower()
 
@@ -55,8 +54,37 @@ def to_n_shot_prompt(
     )
 
 
+def preprocess_dataset(
+    ds: DataFrame,
+    n_examples: int,
+    examples: List[int],
+    model_name: str,
+    tokenizer: AutoTokenizer,
+    calculate_valid=lambda tok, prompt: tok(
+        prompt, return_tensors="pt"
+    ).input_ids.shape[1]
+    < MAX_LEN,
+) -> None:
+    ds["prompt"] = ds["abstractText"].map(
+        lambda e: to_n_shot_prompt(
+            n_examples,
+            {"abstractText": e},
+            ds,
+            examples,
+            supports_system=SYSTEM_SUPPORTED[model_name],
+            tokenizer=tokenizer,
+        )
+    )
+    ds["valid"] = [calculate_valid(tokenizer, prompt) for prompt in ds["prompt"]]
+
+
 def grade(
-    idxs: List[int], ds, tokenizer, model, responses: dict, verbose: bool = False
+    idxs: List[int],
+    ds: DataFrame,
+    tokenizer: AutoTokenizer,
+    model,
+    responses: Dict[str, List[int]],
+    verbose: bool = False,
 ) -> int:
     prompts = list(ds.iloc[idxs]["prompt"])
 

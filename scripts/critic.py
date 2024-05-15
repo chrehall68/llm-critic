@@ -8,7 +8,7 @@ from llm_critic.core.constants import *
 from transformers import BitsAndBytesConfig, AutoModelForCausalLM, AutoTokenizer
 from llm_critic.core.utils import load_dataset
 import random
-from llm_critic.core.llm_critic import to_n_shot_prompt, run_experiment
+from llm_critic.core.llm_critic import preprocess_dataset, run_experiment
 import pickle
 
 parser = argparse.ArgumentParser()
@@ -82,20 +82,7 @@ if __name__ == "__main__":
     # setup
     n_examples = args.shot
     entries = random.choices(list(range(len(ds))), k=n_examples)
-    ds["prompt"] = ds["abstractText"].map(
-        lambda e: to_n_shot_prompt(
-            n_examples,
-            {"abstractText": e},
-            ds,
-            entries,
-            supports_system=SYSTEM_SUPPORTED[args.model],
-            tokenizer=tokenizer,
-        )
-    )
-    ds["valid"] = [
-        tokenizer(prompt, return_tensors="pt").input_ids.shape[1] < MAX_LEN
-        for prompt in ds["prompt"]
-    ]
+    preprocess_dataset(ds, n_examples, entries, args.model, tokenizer)
 
     # calculate split sizes
     split_sizes = [len(ds) // args.split for _ in range(args.split)]

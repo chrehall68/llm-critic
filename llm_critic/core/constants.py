@@ -16,7 +16,7 @@ MODEL_MAP = {
     "galactica": "GeorgiaTechResearchInstitute/galactica-6.7b-evol-instruct-70k",
     "llama": "meta-llama/Meta-Llama-3-8B-Instruct",
 }
-SYSTEM_SUPPORTED = {"llama": True, "galactica": False, "gemma": False}
+SYSTEM_SUPPORTED = {"llama": True, "galactica": False, "gemma": False, "openai": True}
 MAX_LEN = 2000
 LAYER_MAP = {
     "llama": (lambda model: model.model, "embed_tokens"),

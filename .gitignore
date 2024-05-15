@@ -13,8 +13,8 @@ processed/
 # slurm files
 *.launcher
 
-# temporary testing files
+# temp/config files
+.vscode/
+__pycache__/
 *.ipynb
-
-# package files
 *.egg-info/
