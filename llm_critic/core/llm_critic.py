@@ -1,12 +1,9 @@
-import argparse
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
-import torch
-import random
+from transformers import AutoTokenizer
 from typing import Dict, List
-from tqdm import tqdm
-import pickle
 from llm_critic.core.constants import *
-from llm_critic.core.utils import load_dataset
+from llm_critic.core.utils import load_dataset, ExperimentResult
+from tqdm import tqdm
+from pandas import DataFrame
 
 
 # workflow functions
@@ -99,3 +96,58 @@ def grade(
                 LABEL_MAP[ds.iloc[idx]["accepted"]],
             )
     return n_correct
+
+
+def run_experiment(
+    start: int,
+    end: int,
+    examples: List[int],
+    batch_size: int,
+    ds: DataFrame,
+    tokenizer: AutoTokenizer,
+    model,
+    verbose: bool = False,
+) -> ExperimentResult:
+    """
+    Run the experiment
+
+    Arguments:
+        - start: int - the index of the first sample to evaluate on, inclusive
+        - end: int - the index of the last sample to evaluate on, exclusive
+        - examples: List[int] - a list of indices that are reserved for examples
+        - batch_size: int - the batch size to use when evaluating
+        - ds: DataFrame - the dataset
+        - tokenizer: AutoTokenizer - the tokenizer to use
+        - model - the LLM to use
+        - verbose: bool = False - whether or not to print outputs when running the experiment
+    """
+    # run experiment
+    num_correct = 0
+    n_invalid = 0
+    used_examples = 0
+    cur_lst = []
+    responses = {}
+    for idx in (prog := tqdm(range(start, end))):
+        if idx in examples:
+            used_examples += 1
+            continue  # don't include items that were in the examples
+        if not ds["valid"].iloc[idx]:
+            n_invalid += 1
+            continue  # don't include items that are too long due to mistakes in dataset
+
+        cur_lst.append(idx)
+        if len(cur_lst) >= batch_size:  # only compute when batch is full
+            num_correct += grade(cur_lst, ds, tokenizer, model, responses, verbose)
+            cur_lst.clear()
+        prog.set_postfix_str(f"acc: {num_correct/(idx-start+1-used_examples):.3f}")
+    if len(cur_lst) > 0:  # handle any leftovers
+        num_correct += grade(cur_lst, ds, tokenizer, model, responses, verbose)
+        cur_lst.clear()
+
+    return ExperimentResult(
+        n_correct=num_correct,
+        total_samples=(end - start),
+        examples_used=used_examples,
+        responses=responses,
+        n_invalid=n_invalid,
+    )

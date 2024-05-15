@@ -8,7 +8,8 @@ from llm_critic.core.constants import *
 from transformers import BitsAndBytesConfig, AutoModelForCausalLM, AutoTokenizer
 from llm_critic.core.utils import load_dataset
 import random
-from llm_critic.core.llm_critic import *
+from llm_critic.core.llm_critic import to_n_shot_prompt, run_experiment
+import pickle
 
 parser = argparse.ArgumentParser()
 parser.add_argument("model", type=str, choices=[model for model in MODEL_MAP.keys()])
@@ -112,31 +113,11 @@ if __name__ == "__main__":
     assert start < end and end - start == split_sizes[args.id]
 
     # run experiment
-    num_correct = 0
-    n_invalid = 0
-    used_entries = 0
-    cur_lst = []
-    responses = {}
-    for idx in (prog := tqdm(range(start, end))):
-        if idx in entries:
-            used_entries += 1
-            continue  # don't include items that were in the examples
-        if not ds["valid"].iloc[idx]:
-            n_invalid += 1
-            continue  # don't include items that are too long due to mistakes in dataset
-
-        cur_lst.append(idx)
-        if len(cur_lst) >= args.batch_size:  # only compute when batch is full
-            num_correct += grade(cur_lst, ds, tokenizer, model, responses)
-            cur_lst.clear()
-        prog.set_postfix_str(f"acc: {num_correct/(idx-start+1-used_entries):.3f}")
-    if len(cur_lst) > 0:  # handle any leftovers
-        num_correct += grade(cur_lst, ds, tokenizer, model, responses)
-        cur_lst.clear()
+    results = run_experiment(start, end, entries, args.batch_size, ds, tokenizer, model)
 
     # log results
     pickle.dump(
-        responses,
+        results.responses,
         open(
             f"{model_name[model_name.index('/')+1:]}_{n_examples}_{args.id}responses.pk",
             "wb",
@@ -144,7 +125,8 @@ if __name__ == "__main__":
     )
     with open(f"{n_examples}_shot.txt", "a") as file:
         file.write(
-            f"{model_name} {args.id}: {num_correct}/{(end-start)-used_entries-n_invalid}, n_invalid: {n_invalid}, true_ds_len: {len(ds)}\n"
+            f"{model_name} {args.id}: {results.n_correct}/{(end-start)-results.used_entries-results.n_invalid}"
+            f", n_invalid: {results.n_invalid}, true_ds_len: {len(ds)}\n"
         )
 
     # print results up till now

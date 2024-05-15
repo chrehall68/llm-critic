@@ -1,5 +1,5 @@
 import random
-from typing import Any, Union, List
+from typing import Any, Union, List, Dict
 import torch
 from dataclasses import dataclass
 from IPython.display import HTML
@@ -181,3 +181,12 @@ def load_dataset() -> pd.DataFrame:
     del final_df["references"]
     final_df["accepted"] = final_df["accepted"].astype(int)
     return final_df
+
+
+@dataclass
+class ExperimentResult:
+    n_correct: int
+    total_samples: int
+    examples_used: int
+    responses: Dict[str, List[int]]
+    n_invalid: int
