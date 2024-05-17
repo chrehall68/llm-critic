@@ -1,81 +1,13 @@
 from transformers import AutoTokenizer
 from typing import Dict, List
-from llm_critic.core.constants import *
-from llm_critic.core.utils import load_dataset, ExperimentResult
+from llm_critic.utils.constants import *
+from llm_critic.utils import load_dataset, ExperimentResult
 from tqdm import tqdm
 from pandas import DataFrame
 
 
 def was_correct(decoded: str, entry: Dict[str, int]) -> bool:
     return LABEL_MAP[entry["accepted"]].lower() in decoded.lower()
-
-
-def to_zero_shot_prompt(entry: Dict[str, str]) -> str:
-    prompt = f"""Please determine whether NeurIPS should accept the following paper based on its abstract.\n\nAbstract: {entry['abstractText']}"""
-    return prompt
-
-
-def to_example(entry: Dict[str, str]) -> str:
-    return f"""Here's an example of a{'n accepted' if entry['accepted'] == ACCEPT else ' rejected'} abstract:\nAbstract: {entry['abstractText']}\n\n"""
-
-
-def to_n_shot_prompt(
-    n: int,
-    entry: Dict[str, str],
-    ds,
-    entries,
-    supports_system: bool,
-    tokenizer: AutoTokenizer,
-) -> str:
-    system = (
-        "You are a NeurIPS reviewer with many years of experience reviewing papers. "
-        + "You can tell whether a paper will be accepted just by looking at its abstract.\n"
-        + 'For example, given "Abstract: This paper is an example rejected abstract", you might respond "Reviewer decision: Reject"\n'
-        + 'As another example, given "Abstract: This paper is an example accepted abstract", you might respond "Reviewer decision: Accept"\n'
-    )
-    examples = ""
-    for i in range(n):
-        examples += to_example(ds.iloc[entries[i]])
-
-    prompt = examples + to_zero_shot_prompt(entry)
-    if supports_system:
-        return tokenizer.apply_chat_template(
-            [
-                {"role": "system", "content": system},
-                {"role": "user", "content": prompt},
-            ],
-            tokenize=False,
-            add_generation_prompt=True,
-        )
-    return tokenizer.apply_chat_template(
-        [{"role": "user", "content": system + "\n\n" + prompt}],
-        tokenize=False,
-        add_generation_prompt=True,
-    )
-
-
-def preprocess_dataset(
-    ds: DataFrame,
-    n_examples: int,
-    examples: List[int],
-    model_name: str,
-    tokenizer: AutoTokenizer,
-    calculate_valid=lambda tok, prompt: tok(
-        prompt, return_tensors="pt"
-    ).input_ids.shape[1]
-    < MAX_LEN,
-) -> None:
-    ds["prompt"] = ds["abstractText"].map(
-        lambda e: to_n_shot_prompt(
-            n_examples,
-            {"abstractText": e},
-            ds,
-            examples,
-            supports_system=SYSTEM_SUPPORTED[model_name],
-            tokenizer=tokenizer,
-        )
-    )
-    ds["valid"] = [calculate_valid(tokenizer, prompt) for prompt in ds["prompt"]]
 
 
 def grade(
