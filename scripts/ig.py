@@ -47,9 +47,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # experiment setup
-    model_name, tokenizer, model, ds, entries, start, end = setup_experiment(
-        args, args.samples
-    )
+    tokenizer, model, ds, entries, start, end = setup_experiment(args, args.samples)
 
     # sample setup
     if args.items != -1:
@@ -71,9 +69,9 @@ if __name__ == "__main__":
         with torch.no_grad():
             outputs = model(tokens).logits[0, -1]
 
-        if torch.argmax(outputs) == TOKEN_MAP[model_name][ACCEPT]:
+        if torch.argmax(outputs) == TOKEN_MAP[args.model][ACCEPT]:
             label = ACCEPT
-        elif torch.argmax(outputs) == TOKEN_MAP[model_name][REJECT]:
+        elif torch.argmax(outputs) == TOKEN_MAP[args.model][REJECT]:
             label = REJECT
         else:
             print("failed!")
@@ -81,9 +79,9 @@ if __name__ == "__main__":
 
         # replace the normal pytorch embeddings (which only take ints) to interpretable embeddings
         # (which are compatible with the float inputs that integratedgradients gives)
-        true_model = LAYER_MAP[model_name][0](model)
+        true_model = LAYER_MAP[args.model][0](model)
         interpretable_emb = attr.configure_interpretable_embedding_layer(
-            true_model, LAYER_MAP[model_name][1]
+            true_model, LAYER_MAP[args.model][1]
         )
 
         # calculate inputs and baselines
@@ -95,7 +93,7 @@ if __name__ == "__main__":
         attributions = ig.attribute(
             input_embs,
             baselines=baselines,
-            target=TOKEN_MAP[model_name][label],
+            target=TOKEN_MAP[args.model][label],
             n_steps=args.steps,
             internal_batch_size=args.batch_size,
             return_convergence_delta=True,
@@ -116,7 +114,7 @@ if __name__ == "__main__":
             torch.abs(
                 (
                     summarized_attributions.sum()
-                    - predictions[0, TOKEN_MAP[model_name][label]]
+                    - predictions[0, TOKEN_MAP[args.model][label]]
                 )
             )
             >= MARGIN_OF_ERROR
@@ -124,7 +122,7 @@ if __name__ == "__main__":
             print("we are off!!")
             print(
                 "we should be getting somewhere near",
-                predictions[0, TOKEN_MAP[model_name][label]],
+                predictions[0, TOKEN_MAP[args.model][label]],
             )
             print("instead, we get", summarized_attributions.sum())
 
@@ -134,11 +132,11 @@ if __name__ == "__main__":
             summarized_attributions * SCALE,  # word attributions
             LABEL_MAP[entry["accepted"]],  # true label
             label,  # attr class
-            predictions[0, TOKEN_MAP[model_name][label]],  # attr probability
+            predictions[0, TOKEN_MAP[args.model][label]],  # attr probability
             summarized_attributions.sum(),  # attr score
             all_tokens,  # raw input ids
             attributions[1],  # convergence delta
         )
         html = visualize_text([attr_vis])
 
-        save_results("ig", html, attributions, model_name, i)
+        save_results("ig", html, attributions, args.model, i)

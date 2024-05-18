@@ -94,17 +94,15 @@ if __name__ == "__main__":
     n_samples = args.n_samples
 
     # experiment setup
-    model_name, tokenizer, model, ds, entries, start, end = setup_experiment(
-        args, n_samples
-    )
+    tokenizer, model, ds, entries, start, end = setup_experiment(args, n_samples)
 
     # sample setup
     if args.items != -1:
-        assert len(args.items) == args.samples
+        assert len(args.items) == n_samples
         samples = args.items
     else:
         samples = random.choices(
-            list(set(list(range(len(ds)))) - set(entries)), k=args.samples
+            list(set(list(range(len(ds)))) - set(entries)), k=n_samples
         )
 
     for i in range(start, end):

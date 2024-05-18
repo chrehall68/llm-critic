@@ -18,9 +18,10 @@ parser.add_argument(
 
 if __name__ == "__main__":
     args = parser.parse_args()
+    model_name = args.model
 
     # setup experiment
-    model_name, tokenizer, model, ds, entries, start, end = setup_experiment(args)
+    tokenizer, model, ds, entries, start, end = setup_experiment(args)
 
     # run experiment
     results = run_experiment(start, end, entries, args.batch_size, ds, tokenizer, model)
