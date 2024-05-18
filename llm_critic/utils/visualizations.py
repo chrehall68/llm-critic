@@ -1,31 +1,9 @@
-import random
-from typing import Any, Union, List, Dict
-import torch
 from dataclasses import dataclass
+import torch
+from typing import Union, Any, List
 from IPython.display import HTML
 from captum.attr import visualization as viz
 import os
-import pandas as pd
-
-# seed experiment
-random.seed(2024)
-
-
-# functions
-def softmax_results(inputs: torch.Tensor, model: torch.nn.Module):
-    result = model(inputs.cuda()).logits
-    return torch.nn.functional.softmax(result[:, -1], dim=-1).cuda()
-
-
-def softmax_results_embeds(embds: torch.Tensor, model: torch.nn.Module):
-    result = model(inputs_embeds=embds.cuda()).logits
-    return torch.nn.functional.softmax(result[:, -1], dim=-1).cuda()
-
-
-def summarize_attributions(attributions):
-    with torch.no_grad():
-        attributions = attributions.sum(dim=-1).squeeze(0)
-        return attributions
 
 
 # visualization utils
@@ -159,34 +137,3 @@ def save_results(
 
     # save pts as well
     torch.save(attributions, f"{pt_dir}/{sample_num}.pt")
-
-
-def load_dataset() -> pd.DataFrame:
-    df = pd.read_pickle("./parsed_pdf.h5")
-    reviews_df = pd.read_pickle("./reviews_pdf.h5")
-    merged_df = df.merge(
-        reviews_df,
-        left_on=["title", "abstractText", "accepted"],
-        right_on=["title", "abstractText", "accepted"],
-        how="outer",
-    )
-    final_df = merged_df[merged_df["accepted"].notna()]
-    final_df = final_df[final_df["abstractText"].notna()]
-    final_df = final_df[final_df["title"].notna()]
-    del final_df["name"]
-    del final_df["authors"]
-    del final_df["creator"]
-    del final_df["emails"]
-    del final_df["referenceMentions"]
-    del final_df["references"]
-    final_df["accepted"] = final_df["accepted"].astype(int)
-    return final_df
-
-
-@dataclass
-class ExperimentResult:
-    n_correct: int
-    total_samples: int
-    examples_used: int
-    responses: Dict[str, List[int]]
-    n_invalid: int

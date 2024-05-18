@@ -5,50 +5,39 @@ Runs perturbation-based explainability methods (SHAP, LIME)
 import argparse
 import captum.attr as attr
 from captum._utils.models.linear_model import SkLearnLasso
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 import torch
 import torch.nn.functional as F
 import random
-import llm_critic.core.utils as utils
-from llm_critic.core.constants import *
-import llm_critic.core.llm_critic as llm_critic
-
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    "model",
-    type=str,
-    help="the model to use",
-    choices=[
-        "llama",
-        "gemma",
-        "galactica",
-    ],
+from llm_critic.utils.constants import *
+from llm_critic.utils import (
+    setup_experiment,
+    setup_parser,
+    visualize_text,
+    save_results,
+    CustomDataRecord,
 )
+
+parser = setup_parser()
 parser.add_argument(
-    "experiment_type",
+    "--experiment_type",
+    required=True,
     type=str,
     help="the experiment type to run",
     choices=["lime", "shap"],
 )
 parser.add_argument(
-    "n_examples", type=int, help="the number of examples to use", choices=[0, 1, 5]
-)
-parser.add_argument(
-    "n_perturbation_samples",
+    "--n_perturbation_samples",
+    required=True,
     type=int,
     help="the number of samples to use in perturbation methods",
 )
 parser.add_argument(
-    "n_samples", type=int, help="the number of times to run the experiment"
+    "--n_samples",
+    required=True,
+    type=int,
+    help="the number of times to run the experiment",
 )
 parser.add_argument("--items", type=int, nargs="+", required=False, default=-1)
-parser.add_argument(
-    "--quantized",
-    type=str,
-    default="None",
-    required=False,
-    choices=["int8", "nf4", "fp4"],
-)
 
 
 # specific functions
@@ -101,64 +90,26 @@ if __name__ == "__main__":
     args = parser.parse_args()
     model_name = args.model
     experiment_type = args.experiment_type.upper()
-    n_examples = args.n_examples
     n_perturbation_samples = args.n_perturbation_samples
     n_samples = args.n_samples
 
-    # load dataset
-    ds = utils.load_dataset()
+    # experiment setup
+    tokenizer, model, ds, entries, start, end = setup_experiment(args, n_samples)
 
-    # apply chat template
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_MAP[model_name])
-    if CHAT_TEMPLATES[model_name] is not None:
-        tokenizer.chat_template = CHAT_TEMPLATES[model_name]
-
-    # load model
-    config = None
-    if args.quantized == "int8":
-        config = BitsAndBytesConfig(load_in_8bit=True)
-    elif args.quantized == "fp4":
-        config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.bfloat16,
-            bnb_4bit_quant_type="fp4",
-        )
-    elif args.quantized == "nf4":
-        config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.bfloat16,
-            bnb_4bit_quant_type="nf4",
-        )
-    model = AutoModelForCausalLM.from_pretrained(
-        MODEL_MAP[model_name],
-        torch_dtype=torch.bfloat16,
-        device_map="sequential",
-        quantization_config=config,
-    )
-
-    # calculate entries
-    entries = random.choices(list(range(len(ds))), k=n_examples)
-
+    # sample setup
     if args.items != -1:
         assert len(args.items) == n_samples
-    for sample in range(n_samples):
-        if args.items != -1:
-            entry = ds.iloc[args.items[sample]]
-        else:
-            entry = ds.iloc[random.randint(0, len(ds))]
-        # make prompt
-        prompt = llm_critic.to_n_shot_prompt(
-            n_examples,
-            entry,
-            ds,
-            entries,
-            SYSTEM_SUPPORTED[model_name],
-            tokenizer=tokenizer,
+        samples = args.items
+    else:
+        samples = random.choices(
+            list(set(list(range(len(ds)))) - set(entries)), k=n_samples
         )
-        print(prompt)
+
+    for i in range(start, end):
+        entry = ds.iloc[samples[i]]
 
         # get tokens for later
-        tokens = tokenizer(prompt, return_tensors="pt").input_ids.to("cuda")
+        tokens = tokenizer(entry["prompt"], return_tensors="pt").input_ids.to("cuda")
 
         # calculate which label the model responds w/ (so we can perturb for that label)
         with torch.no_grad():
@@ -209,7 +160,7 @@ if __name__ == "__main__":
 
         # save attributions
         SCALE = 2 / attributions.abs().max()
-        attr_vis = utils.CustomDataRecord(
+        attr_vis = CustomDataRecord(
             attributions[0] * SCALE,  # word attributions
             LABEL_MAP[entry["accepted"]],  # true class
             label,  # attr class
@@ -222,12 +173,12 @@ if __name__ == "__main__":
                 else None
             ),
         )
-        html = utils.visualize_text([attr_vis])
+        html = visualize_text([attr_vis])
 
-        utils.save_results(
+        save_results(
             experiment_type.lower(),
             html,
             attributions,
             model_name,
-            sample,
+            i,
         )

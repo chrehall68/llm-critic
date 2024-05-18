@@ -1,6 +1,5 @@
 from llm_critic.core.llm_critic import was_correct
-from llm_critic.core.constants import GENERATION_ARGS, LABEL_MAP
-from llm_critic.core.utils import ExperimentResult
+from llm_critic.utils import ExperimentResult, GENERATION_ARGS, LABEL_MAP
 from typing import List, Dict
 from pandas import DataFrame
 from tqdm import tqdm
@@ -58,7 +57,7 @@ def run_experiment_openai(
     verbose: bool = False,
 ) -> ExperimentResult:
     """
-    Run the experiment
+    Run the experiment, deprecated in favor of creating/submitting a batch and grading the results
 
     Arguments:
         - start: int - the index of the first sample to evaluate on, inclusive
@@ -97,3 +96,29 @@ def run_experiment_openai(
         responses=responses,
         n_invalid=n_invalid,
     )
+
+
+def create_batch(
+    ds: DataFrame, examples: List[int], out_file: str, model: str = "gpt-4o"
+) -> None:
+    with open(out_file, "w") as file:
+        for i in range(len(ds)):
+            if i in examples:
+                continue  # don't bother with items that were in the examples
+
+            # process into a batch
+            body = {
+                "custom_id": f"task-{i}",
+                "method": "POST",
+                "url": "/v1/chat/completions",
+                "body": {
+                    # This is what you would have in your Chat Completions API call
+                    "model": model,
+                    "temperature": GENERATION_ARGS["temperature"],
+                    "messages": json.loads(ds.iloc[i]["prompt"]),
+                    # +2 for "Reviewer decision"
+                    "max_tokens": GENERATION_ARGS["max_new_tokens"] + 2,
+                },
+            }
+            file.write(json.dumps(body))
+            file.write("\n")
