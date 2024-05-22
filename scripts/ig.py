@@ -4,6 +4,7 @@ Runs Integrated Gradients
 
 import captum.attr as attr
 import torch
+from tqdm import tqdm
 import random
 from llm_critic.utils import (
     setup_experiment,
@@ -59,7 +60,7 @@ if __name__ == "__main__":
         )
 
     # run integrated gradients on the samples
-    for i in range(start, end):
+    for i in tqdm(range(start, end)):
         entry = ds.iloc[samples[i]]
 
         # get tokens for later
