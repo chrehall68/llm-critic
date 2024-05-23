@@ -1,4 +1,5 @@
-from llm_critic.utils.experiments import load_dataset, preprocess_dataset, split
+from llm_critic.data import load_dataset
+from llm_critic.utils.experiments import preprocess_dataset, split
 from llm_critic.utils.models import load_model, load_tokenizer
 import llm_critic.utils.seed  # needed for the random seed
 from argparse import ArgumentParser, Namespace
@@ -61,7 +62,7 @@ def setup_experiment(args: Namespace, n: int = -1):
     ds = load_dataset()
     n_examples = args.shot
     entries = random.choices(list(range(len(ds))), k=n_examples)
-    preprocess_dataset(ds, n_examples, entries, args.model, tokenizer)
+    ds = preprocess_dataset(ds, n_examples, entries, args.model, tokenizer)
     if n == -1:
         start, end = split(len(ds), args.splits, args.id)
     else:

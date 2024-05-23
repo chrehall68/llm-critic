@@ -106,7 +106,7 @@ if __name__ == "__main__":
         )
 
     for i in range(start, end):
-        entry = ds.iloc[samples[i]]
+        entry = ds[samples[i]]
 
         # get tokens for later
         tokens = tokenizer(entry["prompt"], return_tensors="pt").input_ids.to("cuda")

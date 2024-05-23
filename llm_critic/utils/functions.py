@@ -1,14 +1,23 @@
 import torch
+from typing import Union
 
 
 # functions
-def softmax_results(inputs: torch.Tensor, model: torch.nn.Module):
-    result = model(inputs.cuda()).logits
+def softmax_results(
+    inputs: torch.Tensor,
+    model: torch.nn.Module,
+    attention_mask: Union[torch.Tensor, None] = None,
+):
+    result = model(inputs.cuda(), attention_mask=attention_mask).logits
     return torch.nn.functional.softmax(result[:, -1], dim=-1).cuda()
 
 
-def softmax_results_embeds(embds: torch.Tensor, model: torch.nn.Module):
-    result = model(inputs_embeds=embds.cuda()).logits
+def softmax_results_embeds(
+    embds: torch.Tensor,
+    model: torch.nn.Module,
+    attention_mask: Union[torch.Tensor, None] = None,
+):
+    result = model(inputs_embeds=embds.cuda(), attention_mask=attention_mask).logits
     return torch.nn.functional.softmax(result[:, -1], dim=-1).cuda()
 
 

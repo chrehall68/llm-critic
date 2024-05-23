@@ -1,7 +1,3 @@
-# data files
-parsed_pdf.h5
-reviews_pdf.h5
-
 # output files
 html/
 pt/
@@ -18,3 +14,5 @@ processed/
 __pycache__/
 *.ipynb
 *.egg-info/
+tmp/
+PeerRead/
