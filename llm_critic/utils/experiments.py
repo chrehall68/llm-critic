@@ -1,9 +1,8 @@
-import pandas as pd
 from dataclasses import dataclass
 from llm_critic.utils.constants import SYSTEM_SUPPORTED, MAX_LEN
 from datasets import Dataset
 from llm_critic.utils.prompts import to_n_shot_prompt
-from transformers import AutoTokenizer
+from transformers import PreTrainedTokenizer
 from typing import Dict, List, Tuple
 
 
@@ -55,7 +54,7 @@ def preprocess_dataset(
     n_examples: int,
     examples: List[int],
     model_name: str,
-    tokenizer: AutoTokenizer,
+    tokenizer: PreTrainedTokenizer,
     calculate_valid=lambda tok, prompt: tok(
         prompt, return_tensors="pt"
     ).input_ids.shape[1]

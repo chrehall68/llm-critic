@@ -2,7 +2,6 @@
 Runs perturbation-based explainability methods (SHAP, LIME)
 """
 
-import argparse
 import captum.attr as attr
 from captum._utils.models.linear_model import SkLearnLasso
 import torch
@@ -109,7 +108,10 @@ if __name__ == "__main__":
         entry = ds[samples[i]]
 
         # get tokens for later
-        tokens = tokenizer(entry["prompt"], return_tensors="pt").input_ids.to("cuda")
+        # add special tokens = False to prevent adding an extra BOS token
+        tokens = tokenizer(
+            entry["prompt"], return_tensors="pt", add_special_tokens=False
+        ).input_ids.to("cuda")
 
         # calculate which label the model responds w/ (so we can perturb for that label)
         with torch.no_grad():

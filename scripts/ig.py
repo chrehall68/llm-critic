@@ -64,7 +64,10 @@ if __name__ == "__main__":
         entry = ds[samples[i]]
 
         # get tokens for later
-        tokens = tokenizer(entry["prompt"], return_tensors="pt").input_ids.to("cuda")
+        # add special tokens = False to prevent adding an extra BOS token
+        tokens = tokenizer(
+            entry["prompt"], return_tensors="pt", add_special_tokens=False
+        ).input_ids.to("cuda")
 
         # calculate which label the model responds w/ (so we can calculate ig for that label)
         with torch.no_grad():

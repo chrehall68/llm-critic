@@ -1,6 +1,6 @@
 from typing import Dict
 from llm_critic.utils.constants import ACCEPT
-from transformers import AutoTokenizer
+from transformers import PreTrainedTokenizer
 from datasets import Dataset
 
 
@@ -19,7 +19,7 @@ def to_n_shot_prompt(
     ds: Dataset,
     entries,
     supports_system: bool,
-    tokenizer: AutoTokenizer,
+    tokenizer: PreTrainedTokenizer,
 ) -> str:
     system = (
         "You are a NeurIPS reviewer with many years of experience reviewing papers. "

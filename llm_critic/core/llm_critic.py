@@ -1,4 +1,4 @@
-from transformers import AutoTokenizer
+from transformers import PreTrainedTokenizer
 from typing import Dict, List
 from llm_critic.utils.constants import *
 from llm_critic.utils import load_dataset, ExperimentResult
@@ -13,7 +13,7 @@ def was_correct(decoded: str, entry: Dict[str, int]) -> bool:
 def grade(
     idxs: List[int],
     ds: Dataset,
-    tokenizer: AutoTokenizer,
+    tokenizer: PreTrainedTokenizer,
     model,
     responses: Dict[str, List[int]],
     verbose: bool = False,
@@ -21,7 +21,10 @@ def grade(
     prompts = list(ds[idxs]["prompt"])
 
     # encode input, move it to cuda, then generate
-    encoded_input = tokenizer(prompts, return_tensors="pt", padding=True).to("cuda")
+    # add special tokens = False to prevent adding an extra BOS token
+    encoded_input = tokenizer(
+        prompts, return_tensors="pt", padding=True, add_special_tokens=False
+    ).to("cuda")
     original_length = encoded_input.input_ids.shape[-1]
 
     outputs = model.generate(
@@ -64,7 +67,7 @@ def run_experiment(
     examples: List[int],
     batch_size: int,
     ds: Dataset,
-    tokenizer: AutoTokenizer,
+    tokenizer: PreTrainedTokenizer,
     model,
     verbose: bool = False,
 ) -> ExperimentResult:
@@ -77,7 +80,7 @@ def run_experiment(
         - examples: List[int] - a list of indices that are reserved for examples
         - batch_size: int - the batch size to use when evaluating
         - ds: DataFrame - the dataset
-        - tokenizer: AutoTokenizer - the tokenizer to use
+        - tokenizer: PreTrainedTokenizer - the tokenizer to use
         - model - the LLM to use
         - verbose: bool = False - whether or not to print outputs when running the experiment
     """

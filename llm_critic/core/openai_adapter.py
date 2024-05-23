@@ -63,10 +63,7 @@ def run_experiment_openai(
         - start: int - the index of the first sample to evaluate on, inclusive
         - end: int - the index of the last sample to evaluate on, exclusive
         - examples: List[int] - a list of indices that are reserved for examples
-        - batch_size: int - the batch size to use when evaluating
         - ds: Dataset - the dataset
-        - tokenizer: AutoTokenizer - the tokenizer to use
-        - model - the LLM to use
         - verbose: bool = False - whether or not to print outputs when running the experiment
     """
     # run experiment
