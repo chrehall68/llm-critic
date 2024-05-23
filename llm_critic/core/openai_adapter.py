@@ -1,7 +1,7 @@
 from llm_critic.core.llm_critic import was_correct
 from llm_critic.utils import ExperimentResult, GENERATION_ARGS, LABEL_MAP
 from typing import List, Dict
-from pandas import DataFrame
+from datasets import Dataset
 from tqdm import tqdm
 from openai import OpenAI
 import os
@@ -15,13 +15,13 @@ class OpenAIAdapterTokenizer:
 
 def grade_openai(
     idx: int,
-    ds: DataFrame,
+    ds: Dataset,
     client: OpenAI,
     responses: Dict[str, List[int]],
     verbose: bool = False,
     model: str = "gpt-4o",
 ) -> int:
-    prompt: List[Dict[str, str]] = json.loads(ds.iloc[idx]["prompt"])
+    prompt: List[Dict[str, str]] = json.loads(ds[idx]["prompt"])
     completion = client.chat.completions.create(
         model=model,
         messages=prompt,
@@ -31,7 +31,7 @@ def grade_openai(
     )
 
     decoded = completion.choices[0].message.content
-    correct = was_correct(decoded, ds.iloc[idx])
+    correct = was_correct(decoded, ds[idx])
 
     if decoded not in responses:
         responses[decoded] = []
@@ -44,7 +44,7 @@ def grade_openai(
             " - responded",
             decoded,
             "and answer should have been",
-            LABEL_MAP[ds.iloc[idx]["accepted"]],
+            LABEL_MAP[ds[idx]["accepted"]],
         )
     return 1 if correct else 0
 
@@ -53,7 +53,7 @@ def run_experiment_openai(
     start: int,
     end: int,
     examples: List[int],
-    ds: DataFrame,
+    ds: Dataset,
     verbose: bool = False,
 ) -> ExperimentResult:
     """
@@ -64,7 +64,7 @@ def run_experiment_openai(
         - end: int - the index of the last sample to evaluate on, exclusive
         - examples: List[int] - a list of indices that are reserved for examples
         - batch_size: int - the batch size to use when evaluating
-        - ds: DataFrame - the dataset
+        - ds: Dataset - the dataset
         - tokenizer: AutoTokenizer - the tokenizer to use
         - model - the LLM to use
         - verbose: bool = False - whether or not to print outputs when running the experiment
@@ -82,7 +82,7 @@ def run_experiment_openai(
         if idx in examples:
             used_examples += 1
             continue  # don't include items that were in the examples
-        if not ds["valid"].iloc[idx]:
+        if not ds["valid"][idx]:
             n_invalid += 1
             continue  # don't include items that are too long due to mistakes in dataset
 
@@ -99,7 +99,7 @@ def run_experiment_openai(
 
 
 def create_batch(
-    ds: DataFrame, examples: List[int], out_file: str, model: str = "gpt-4o"
+    ds: Dataset, examples: List[int], out_file: str, model: str = "gpt-4o"
 ) -> None:
     with open(out_file, "w") as file:
         for i in range(len(ds)):
@@ -115,7 +115,7 @@ def create_batch(
                     # This is what you would have in your Chat Completions API call
                     "model": model,
                     "temperature": GENERATION_ARGS["temperature"],
-                    "messages": json.loads(ds.iloc[i]["prompt"]),
+                    "messages": json.loads(ds[i]["prompt"]),
                     # +2 for "Reviewer decision"
                     "max_tokens": GENERATION_ARGS["max_new_tokens"] + 2,
                 },

@@ -3,7 +3,7 @@ from typing import Dict, List
 from llm_critic.utils.constants import *
 from llm_critic.utils import load_dataset, ExperimentResult
 from tqdm import tqdm
-from pandas import DataFrame
+from datasets import Dataset
 
 
 def was_correct(decoded: str, entry: Dict[str, int]) -> bool:
@@ -12,13 +12,13 @@ def was_correct(decoded: str, entry: Dict[str, int]) -> bool:
 
 def grade(
     idxs: List[int],
-    ds: DataFrame,
+    ds: Dataset,
     tokenizer: AutoTokenizer,
     model,
     responses: Dict[str, List[int]],
     verbose: bool = False,
 ) -> int:
-    prompts = list(ds.iloc[idxs]["prompt"])
+    prompts = list(ds[idxs]["prompt"])
 
     # encode input, move it to cuda, then generate
     encoded_input = tokenizer(prompts, return_tensors="pt", padding=True).to("cuda")
@@ -38,7 +38,7 @@ def grade(
             print(tokenizer.decode(outputs[item_num]))
 
         decoded = tokenizer.decode(outputs[item_num, original_length:])
-        correct = was_correct(decoded, ds.iloc[idx])
+        correct = was_correct(decoded, ds[idx])
 
         if decoded not in responses:
             responses[decoded] = []
@@ -53,7 +53,7 @@ def grade(
                 " - responded",
                 tokenizer.decode(outputs[item_num, original_length:]),
                 "and answer should have been",
-                LABEL_MAP[ds.iloc[idx]["accepted"]],
+                LABEL_MAP[ds[idx]["accepted"]],
             )
     return n_correct
 
@@ -63,7 +63,7 @@ def run_experiment(
     end: int,
     examples: List[int],
     batch_size: int,
-    ds: DataFrame,
+    ds: Dataset,
     tokenizer: AutoTokenizer,
     model,
     verbose: bool = False,
@@ -91,7 +91,7 @@ def run_experiment(
         if idx in examples:
             used_examples += 1
             continue  # don't include items that were in the examples
-        if not ds["valid"].iloc[idx]:
+        if not ds[idx]["valid"]:
             n_invalid += 1
             continue  # don't include items that are too long due to mistakes in dataset
 

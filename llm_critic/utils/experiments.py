@@ -1,32 +1,10 @@
 import pandas as pd
 from dataclasses import dataclass
 from llm_critic.utils.constants import SYSTEM_SUPPORTED, MAX_LEN
-from pandas import DataFrame
+from datasets import Dataset
 from llm_critic.utils.prompts import to_n_shot_prompt
 from transformers import AutoTokenizer
 from typing import Dict, List, Tuple
-
-
-def load_dataset() -> pd.DataFrame:
-    df = pd.read_pickle("./parsed_pdf.h5")
-    reviews_df = pd.read_pickle("./reviews_pdf.h5")
-    merged_df = df.merge(
-        reviews_df,
-        left_on=["title", "abstractText", "accepted"],
-        right_on=["title", "abstractText", "accepted"],
-        how="outer",
-    )
-    final_df = merged_df[merged_df["accepted"].notna()]
-    final_df = final_df[final_df["abstractText"].notna()]
-    final_df = final_df[final_df["title"].notna()]
-    del final_df["name"]
-    del final_df["authors"]
-    del final_df["creator"]
-    del final_df["emails"]
-    del final_df["referenceMentions"]
-    del final_df["references"]
-    final_df["accepted"] = final_df["accepted"].astype(int)
-    return final_df
 
 
 @dataclass
@@ -73,7 +51,7 @@ def split(n: int, m: int, k: int) -> Tuple[int, int]:
 
 
 def preprocess_dataset(
-    ds: DataFrame,
+    ds: Dataset,
     n_examples: int,
     examples: List[int],
     model_name: str,
@@ -82,15 +60,19 @@ def preprocess_dataset(
         prompt, return_tensors="pt"
     ).input_ids.shape[1]
     < MAX_LEN,
-) -> None:
-    ds["prompt"] = ds["abstractText"].map(
-        lambda e: to_n_shot_prompt(
-            n_examples,
-            {"abstractText": e},
-            ds,
-            examples,
-            supports_system=SYSTEM_SUPPORTED[model_name],
-            tokenizer=tokenizer,
-        )
+) -> Dataset:
+    ds = ds.map(
+        lambda e: {
+            "prompt": to_n_shot_prompt(
+                n_examples,
+                e,
+                ds,
+                examples,
+                supports_system=SYSTEM_SUPPORTED[model_name],
+                tokenizer=tokenizer,
+            )
+        }
     )
-    ds["valid"] = [calculate_valid(tokenizer, prompt) for prompt in ds["prompt"]]
+    ds = ds.map(lambda e: {"valid": calculate_valid(tokenizer, e["prompt"])})
+    ds = ds.map(lambda e: {"accepted": 1 if e["accepted"] else 0})
+    return ds
