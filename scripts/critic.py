@@ -3,7 +3,7 @@ Runs the quantitative critic experiment
 """
 
 from llm_critic.core.llm_critic import run_experiment
-from llm_critic.utils import setup_parser, setup_experiment
+from llm_critic.utils import setup_parser, setup_experiment, MODEL_MAP
 import pickle
 
 parser = setup_parser()
@@ -18,7 +18,7 @@ parser.add_argument(
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    model_name = args.model
+    model_name = MODEL_MAP[args.model]
 
     # setup experiment
     tokenizer, model, ds, entries, start, end = setup_experiment(args)
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     )
     with open(f"{args.shot}_shot.txt", "a") as file:
         file.write(
-            f"{model_name} {args.id}: {results.n_correct}/{(end-start)-results.used_entries-results.n_invalid}"
+            f"{model_name} {args.id}: {results.n_correct}/{(end-start)-results.examples_used-results.n_invalid}"
             f", n_invalid: {results.n_invalid}, true_ds_len: {len(ds)}\n"
         )
 
