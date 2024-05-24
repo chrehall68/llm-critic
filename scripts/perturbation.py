@@ -361,7 +361,9 @@ if __name__ == "__main__":
                 dont_perturb=dont_perturb,
             )
         elif experiment_type == SHAP:
-            attributer = attr.KernelShap(softmax_results)
+            attributer = attr.KernelShap(
+                lambda inp: softmax_results(inp, tokenizer, model)
+            )
             attributions = attributer.attribute(
                 tokens,
                 target=TOKEN_MAP[model_name][label],
