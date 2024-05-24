@@ -68,7 +68,7 @@ def visualize_text(
             )
     else:
         rows = [
-            "<tr><th>Predicted Label</th>"
+            "<tr><th>True Label</th>"
             "<th>Attribution Label</th>"
             "<th>Attribution Score</th>"
             "<th>Word Importance</th>"
