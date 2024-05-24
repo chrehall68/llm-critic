@@ -14,8 +14,9 @@ START_STR = "<td><mark"
 END_STR = "<tr></table>"
 
 # constants for finding the label
-LABEL_START_STR = "<tr><td><text"
-LABEL_END_STR = "</b></text>"
+LABEL_START_STR = "</td><td><text"
+LABEL_END_STR = ")</b></text>"
+LABEL_MAP = {"1": "Accept", "0": "Reject"}
 
 
 def to_row_format(result: str, expname: str, tdmarkstuff: str):
@@ -44,8 +45,16 @@ if __name__ == "__main__":
                 if exp == "ig":
                     temp = html_file[
                         html_file.index(LABEL_START_STR)
-                        + 8 : html_file.index(LABEL_END_STR)
+                        + len(LABEL_START_STR) : html_file.index(LABEL_END_STR)
                     ]
+                    temp = (
+                        "<b>"
+                        + LABEL_MAP[
+                            temp[temp.index("<b>") + 3 : temp.index("(")].strip()
+                        ]
+                        + "</b>"
+                    )
+
                 result += to_row_format(
                     temp, exp.upper(), html_file[start_idx:last_idx]
                 )
