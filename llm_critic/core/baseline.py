@@ -47,7 +47,7 @@ def run_baseline(
     )
     trainer.train()
 
-    outputs = model.predict(test)
+    outputs = trainer.predict(test)
     metrics = evaluate.combine(["accuracy", "recall", "precision", "f1"])
     results = metrics.compute(outputs, test["labels"])
 
