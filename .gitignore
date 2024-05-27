@@ -5,6 +5,7 @@ pt/
 *.txt
 results/
 processed/
+images/
 
 # slurm files
 *.launcher

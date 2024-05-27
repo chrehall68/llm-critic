@@ -41,19 +41,15 @@ if __name__ == "__main__":
                 start_idx = html_file.index(START_STR)
                 last_idx = html_file.index(END_STR) - len(END_STR)
 
-                temp = ""
-                if exp == "ig":
-                    temp = html_file[
-                        html_file.index(LABEL_START_STR)
-                        + len(LABEL_START_STR) : html_file.index(LABEL_END_STR)
-                    ]
-                    temp = (
-                        "<b>"
-                        + LABEL_MAP[
-                            temp[temp.index("<b>") + 3 : temp.index("(")].strip()
-                        ]
-                        + "</b>"
-                    )
+                temp = html_file[
+                    html_file.index(LABEL_START_STR)
+                    + len(LABEL_START_STR) : html_file.index(LABEL_END_STR)
+                ]
+                temp = (
+                    "<b>"
+                    + LABEL_MAP[temp[temp.index("<b>") + 3 : temp.index("(")].strip()]
+                    + "</b>"
+                )
 
                 result += to_row_format(
                     temp, exp.upper(), html_file[start_idx:last_idx]
