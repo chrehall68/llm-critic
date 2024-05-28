@@ -1,8 +1,7 @@
-import torch
 from typing import Union
+import torch
 
 
-# functions
 def softmax_results(
     inputs: torch.Tensor,
     model: torch.nn.Module,

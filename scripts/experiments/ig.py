@@ -14,11 +14,13 @@ from llm_critic.utils import (
     ACCEPT,
     REJECT,
     LABEL_MAP,
-    softmax_results,
-    softmax_results_embeds,
     CustomDataRecord,
     visualize_text,
     save_results,
+)
+from llm_critic.explainability.ig_utils import (
+    softmax_results,
+    softmax_results_embeds,
     summarize_attributions,
 )
 
