@@ -1,3 +1,11 @@
+"""
+This script calculates accuracy for the critic experiment. It outputs a latex table to stdout.
+
+Example usage:
+
+python3 scripts/insights/accuracy.py processed_results/
+"""
+
 import argparse
 import os
 from llm_critic.utils import MODEL_MAP

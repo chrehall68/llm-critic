@@ -1,3 +1,11 @@
+"""
+This script converts html files to images for insertion into papers.
+
+Example usage:
+
+python3 scripts/data_manip/html_to_image.py html/ images/
+"""
+
 import html2image
 import argparse
 import os

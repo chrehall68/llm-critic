@@ -1,3 +1,12 @@
+"""
+This file calculates the accept/reject distribution of responses, printing them to stdout.
+It also formats that data in a latex table that gets printed to stdout.
+
+Example usage:
+
+python3 scripts/insights/distribution.py processed_results/
+"""
+
 import pickle as pk
 import os
 import argparse

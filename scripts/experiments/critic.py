@@ -1,5 +1,9 @@
 """
 Runs the quantitative critic experiment
+
+Example usage:
+
+python3 scripts/experiments/critic.py --model llama --shot 0 --id 0 --splits 1 --batch_size 5 --dtype float16
 """
 
 from llm_critic.core.llm_critic import run_experiment

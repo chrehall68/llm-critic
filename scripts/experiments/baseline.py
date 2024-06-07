@@ -1,3 +1,11 @@
+"""
+Runs the RoBERTA baseline experiment.
+
+Example usage:
+
+python3 scripts/experiments/baseline.py
+"""
+
 import llm_critic.core.baseline as baselines
 
 

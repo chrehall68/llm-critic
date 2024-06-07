@@ -1,3 +1,11 @@
+"""
+This file calculates metrics for the critic experiment. It outputs a latex table to stdout.
+
+Example usage:
+
+python3 scripts/insights/metrics.py processed_results/
+"""
+
 import argparse
 import pickle as pk
 import os

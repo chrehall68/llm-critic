@@ -1,5 +1,9 @@
 """
 Combines interpretability outputs for a sample into a single .html file
+
+Example usage:
+
+python3 scripts/data_manip/combine_html.py html/ html/
 """
 
 import os

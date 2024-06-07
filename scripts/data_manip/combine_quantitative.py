@@ -1,3 +1,11 @@
+"""
+This script combines sharded pickled results into a single pickle file
+
+Example usage:
+
+python3 scripts/data_manip/combine_quantitative.py
+"""
+
 from collections import defaultdict
 import os
 import re

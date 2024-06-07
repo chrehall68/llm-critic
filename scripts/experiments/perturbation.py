@@ -1,5 +1,15 @@
 """
 Runs perturbation-based explainability methods (SHAP, LIME)
+
+Example LIME usage:
+
+python3 scripts/experiments/perturbation.py --model=llama --shot 0 --experiment_type lie --id 0 --splits 1 \\
+    --n_perturbation_samples 10 --n_samples 10 --batch_size 1 --dtype float16
+
+Example SHAP usage:
+
+python3 scripts/experiments/perturbation.py --model=llama --shot 0 --experiment_type shap --id 0 --splits 1 \\
+    --n_perturbation_samples 10 --n_samples 10 --batch_size 1 --dtype float16
 """
 
 import captum.attr as attr

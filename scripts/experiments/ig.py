@@ -1,5 +1,10 @@
 """
 Runs Integrated Gradients
+
+Example usage:
+
+python3 scripts/experiments/ig.py --model llama --shot 0 --id 0 --splits 1 \\
+    --batch_size 2 --dtype float16 --samples 10 --steps 512
 """
 
 import captum.attr as attr
