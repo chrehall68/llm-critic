@@ -1,1 +1,1 @@
-from llm_critic.data.dataset import load_dataset
+from .dataset import load_dataset
