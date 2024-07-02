@@ -40,3 +40,10 @@ TOKEN_MAP = {
     "gemma": {0: 140754, 1: 38601},
     "galactica": {0: 1372, 1: 31837},
 }
+
+DEFAULT_SYSTEM_PROMPT = (
+    "You are a NeurIPS reviewer with many years of experience reviewing papers. "
+    + "You can tell whether a paper will be accepted just by looking at its abstract.\n"
+    + 'For example, given "Abstract: This paper is an example rejected abstract", you might respond "Reviewer decision: Reject"\n'
+    + 'As another example, given "Abstract: This paper is an example accepted abstract", you might respond "Reviewer decision: Accept"\n'
+)

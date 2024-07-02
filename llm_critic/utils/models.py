@@ -1,6 +1,6 @@
 from typing import Union, Literal
 import torch
-from llm_critic.utils.constants import MODEL_MAP, CHAT_TEMPLATES
+from .constants import MODEL_MAP, CHAT_TEMPLATES
 from transformers import BitsAndBytesConfig, AutoModelForCausalLM, AutoTokenizer
 
 

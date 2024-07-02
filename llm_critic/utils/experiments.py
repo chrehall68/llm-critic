@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from llm_critic.utils.constants import SYSTEM_SUPPORTED, MAX_LEN
+from .constants import SYSTEM_SUPPORTED, MAX_LEN
 from datasets import Dataset
-from llm_critic.utils.prompts import to_n_shot_prompt
+from .prompts import to_n_shot_prompt
 from transformers import PreTrainedTokenizer
 from typing import Dict, List, Tuple
 

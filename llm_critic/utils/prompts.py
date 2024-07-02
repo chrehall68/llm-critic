@@ -1,5 +1,5 @@
 from typing import Dict
-from llm_critic.utils.constants import ACCEPT
+from .constants import ACCEPT, DEFAULT_SYSTEM_PROMPT
 from transformers import PreTrainedTokenizer
 from datasets import Dataset
 
@@ -20,13 +20,8 @@ def to_n_shot_prompt(
     entries,
     supports_system: bool,
     tokenizer: PreTrainedTokenizer,
+    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
 ) -> str:
-    system = (
-        "You are a NeurIPS reviewer with many years of experience reviewing papers. "
-        + "You can tell whether a paper will be accepted just by looking at its abstract.\n"
-        + 'For example, given "Abstract: This paper is an example rejected abstract", you might respond "Reviewer decision: Reject"\n'
-        + 'As another example, given "Abstract: This paper is an example accepted abstract", you might respond "Reviewer decision: Accept"\n'
-    )
     examples = ""
     for i in range(n):
         examples += to_example(ds[entries[i]])
@@ -35,14 +30,14 @@ def to_n_shot_prompt(
     if supports_system:
         return tokenizer.apply_chat_template(
             [
-                {"role": "system", "content": system},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},
             ],
             tokenize=False,
             add_generation_prompt=True,
         )
     return tokenizer.apply_chat_template(
-        [{"role": "user", "content": system + "\n\n" + prompt}],
+        [{"role": "user", "content": system_prompt + "\n\n" + prompt}],
         tokenize=False,
         add_generation_prompt=True,
     )

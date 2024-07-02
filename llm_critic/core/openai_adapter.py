@@ -1,4 +1,4 @@
-from llm_critic.core.llm_critic import was_correct
+from .llm_critic import was_correct
 from llm_critic.utils import ExperimentResult, GENERATION_ARGS, LABEL_MAP
 from typing import List, Dict
 from datasets import Dataset

@@ -1,9 +1,9 @@
 from llm_critic.data import load_dataset
-from llm_critic.utils.experiments import preprocess_dataset, split
-from llm_critic.utils.models import load_model, load_tokenizer
-import llm_critic.utils.seed  # needed for the random seed
+from .experiments import preprocess_dataset, split
+from .models import load_model, load_tokenizer
+from . import seed  # needed for the random seed
 from argparse import ArgumentParser, Namespace
-from llm_critic.utils.constants import MODEL_MAP
+from .constants import MODEL_MAP
 import random
 
 
