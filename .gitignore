@@ -1,6 +1,5 @@
 # output files
-html/
-pt/
+perturbation_outputs/
 *.out 
 *.txt
 results/

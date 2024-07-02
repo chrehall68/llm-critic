@@ -32,9 +32,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("input_dir")
     parser.add_argument("output_dir")
+    parser.add_argument("--experiments", nargs="+", default=["ig", "lime", "shap"])
     args = parser.parse_args()
     idir = args.input_dir
     odir = args.output_dir
+    exps = args.experiments
 
     for model in os.listdir(f"{idir}/ig"):  # ig is arbitrary
         for i in range(50):
@@ -42,11 +44,11 @@ if __name__ == "__main__":
             if not all(
                 map(
                     lambda e: os.path.exists(f"{idir}/{e}/{model}/{i}.html"),
-                    ["ig", "lime", "shap"],
+                    exps,
                 )
             ):
                 continue  # don't have all files
-            for exp in ["ig", "lime", "shap"]:
+            for exp in exps:
                 html_file = open(f"{idir}/{exp}/{model}/{i}.html").read()
                 start_idx = html_file.index(START_STR)
                 last_idx = html_file.index(END_STR) - len(END_STR)
