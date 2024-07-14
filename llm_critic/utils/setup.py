@@ -45,6 +45,13 @@ def setup_parser() -> ArgumentParser:
         default="float16",
         help="the compute dtype to use",
     )
+    parser.add_argument(
+        "--prompt",
+        type=str,
+        default=None,
+        required=False,
+        help="the system prompt to use",
+    )
     return parser
 
 
@@ -62,7 +69,14 @@ def setup_experiment(args: Namespace, n: int = -1):
     ds = load_dataset()
     n_examples = args.shot
     entries = random.choices(list(range(len(ds))), k=n_examples)
-    ds = preprocess_dataset(ds, n_examples, entries, args.model, tokenizer)
+    ds = preprocess_dataset(
+        ds=ds,
+        n_examples=n_examples,
+        examples=entries,
+        model_name=args.model,
+        tokenizer=tokenizer,
+        system_prompt=args.prompt,
+    )
     if n == -1:
         start, end = split(len(ds), args.splits, args.id)
     else:
