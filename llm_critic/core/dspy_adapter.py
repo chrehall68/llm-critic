@@ -1,5 +1,5 @@
 import dspy.datasets
-import dspy.evaluate
+import dspy.evaluate.aevaluate
 from ..data import load_dataset
 import dspy
 from typing import List
@@ -18,6 +18,8 @@ class PeerReadDspy:
         # abstract, title, accepted
         dataset.shuffle(2024)
         dataset = dataset.to_list()
+        for entry in dataset:
+            entry["status"] = "accepted" if entry["accepted"] else "rejected"
 
         trainset_end = int(len(dataset) * trainsize)
         devset_end = int(len(dataset) * (trainsize + devsize))
@@ -35,29 +37,23 @@ class PeerReadDspy:
         ]
 
 
-def peerread_metric(y_true, y_pred, trace=None):
-    trues = ["true", "yes", "accept"]
-    falses = ["false", "no", "reject"]
-    y_true_bool = None
+def peerread_metric(
+    y_true, y_pred, trace=None, trues=["accepted"], falses=["rejected"]
+):
     y_pred_bool = None
-    if y_pred.accepted.lower() in trues:
+    if any(x in y_pred.status.lower() for x in trues):
         y_pred_bool = True
-    elif y_pred.accepted.lower() in falses:
+    elif any(x in y_pred.status.lower() for x in falses):
         y_pred_bool = False
-    if str(y_true.accepted).lower() in trues:
-        y_true_bool = True
-    elif str(y_true.accepted).lower() in falses:
-        y_true_bool = False
 
-    assert y_true_bool is not None
-    return y_pred_bool == y_true_bool
+    return y_true.accepted == y_pred_bool
 
 
-def run_experiment(module: dspy.Module, ds: PeerReadDspy, n_threads: int = 1):
-    evaluate = dspy.evaluate.Evaluate(
-        devset=ds.test,
+async def run_experiment(module: dspy.Module, ds, n_threads: int = 1):
+    evaluate = dspy.evaluate.aevaluate.AEvaluate(
+        devset=ds,
         metric=peerread_metric,
         num_threads=n_threads,
         display_progress=True,
     )
-    return evaluate(module, return_outputs=True, return_all_scores=True)
+    return await evaluate(module, return_outputs=True, return_all_scores=True)
