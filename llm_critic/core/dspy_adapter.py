@@ -1,5 +1,5 @@
 import dspy.datasets
-import dspy.evaluate.aevaluate
+import dspy.evaluate.evaluate
 from ..data import load_dataset
 import dspy
 from typing import List
@@ -49,11 +49,11 @@ def peerread_metric(
     return y_true.accepted == y_pred_bool
 
 
-async def run_experiment(module: dspy.Module, ds, n_threads: int = 1):
-    evaluate = dspy.evaluate.aevaluate.AEvaluate(
+def run_experiment(module: dspy.Module, ds, n_threads: int = 1):
+    evaluate = dspy.evaluate.Evaluate(
         devset=ds,
         metric=peerread_metric,
         num_threads=n_threads,
         display_progress=True,
     )
-    return await evaluate(module, return_outputs=True, return_all_scores=True)
+    return evaluate(module, return_outputs=True, return_all_scores=True)

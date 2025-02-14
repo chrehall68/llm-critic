@@ -1,12 +1,12 @@
 from tokenizers import Tokenizer
 import llm_critic.core.dspy_adapter as adapter
 import dspy
-import dspy.teleprompt
-from dspy.predict.asynchronous.acot import AChainOfThought
-from dspy.predict.asynchronous.apredict import APredict
+from dspy.teleprompt.mipro_optimizer import MIPRO
+from dspy.predict.chain_of_thought import ChainOfThought
+from dspy.predict.predict import Predict
 import argparse
 import os
-import asyncio
+import pickle as pk
 
 VLLM_API_KEY = os.environ.get("VLLM_API_KEY", "*")
 VLLM_API_BASE = os.environ.get("VLLM_API_BASE", "http://localhost:8001/v1/")
@@ -22,25 +22,25 @@ class PeerReadSignature(dspy.Signature):
 class CoTModule(dspy.Module):
     def __init__(self):
         super().__init__()
-        self.prog = AChainOfThought(PeerReadSignature)
+        self.prog = ChainOfThought(PeerReadSignature)
 
-    async def forward(self, abstract: str):
-        return await self.prog(abstract=abstract)
+    def forward(self, abstract: str):
+        return self.prog(abstract=abstract)
 
-    async def __call__(self, *args, **kwargs):
-        return await self.forward(*args, **kwargs)
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
 
 
 class ZeroShotModule(dspy.Module):
     def __init__(self):
         super().__init__()
-        self.prog = APredict(PeerReadSignature)
+        self.prog = Predict(PeerReadSignature)
 
-    async def forward(self, **kwargs):
-        return await self.prog(**kwargs)
+    def forward(self, **kwargs):
+        return self.prog(**kwargs)
 
-    async def __call__(self, *args, **kwargs):
-        return await self.forward(*args, **kwargs)
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
 
 
 if __name__ == "__main__":
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # configure LM
-    llama = dspy.AOpenAI(
+    llama = dspy.OpenAI(
         model="meta-llama/Meta-Llama-3-8B-Instruct",
         max_tokens=512,
         temperature=0.0,
@@ -84,23 +84,29 @@ if __name__ == "__main__":
 
     # prompter = dspy.teleprompt.KNNFewShot(KNN, 5, ds.train)
     # prompter = dspy.teleprompt.BootstrapFewShot(adapter.peerread_metric, max_labeled_demos=5, max_bootstrapped_demos=0)
-    # prompter = dspy.teleprompt.MIPRO(
-    #     adapter.peerread_metric, prompt_model=llama, task_model=llama
-    # )
+    prompter = MIPRO(
+        metric=adapter.peerread_metric, prompt_model=llama, task_model=llama
+    )
     module = ZeroShotModule() if not args.cot else CoTModule()
-    # optimized_program = prompter.compile(
-    #     student=m,
-    #     trainset=ds.train,
-    #     num_trials=10,
-    #     max_bootstrapped_demos=1,
-    #     max_labeled_demos=5,
-    #     eval_kwargs={"num_threads": 3},
-    # )
+    optimized_program = prompter.compile(
+        student=module,
+        trainset=ds.train,
+        num_batches=10,
+        max_bootstrapped_demos=1,
+        max_labeled_demos=5,
+        program_aware_proposer=False,
+        eval_kwargs={"num_threads": args.concurrency},
+    )
 
-    # optimized_program.save("output_program2")
+    optimized_program.save("output_program")
+    module = optimized_program
 
     # run experiment
-    score, outputs, results = asyncio.run(
-        adapter.run_experiment(module=module, ds=test_ds, n_threads=args.concurrency)
-    )
-    print(llama.inspect_history())
+    try:
+        score, outputs, results = adapter.run_experiment(
+            module=module, ds=test_ds, n_threads=args.concurrency
+        )
+    except:
+        print(llama.inspect_history())
+
+    pk.dump((score, outputs, results), open("results.pk", "wb"))
