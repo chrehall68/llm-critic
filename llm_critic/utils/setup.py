@@ -1,7 +1,6 @@
 from llm_critic.data import load_dataset
 from .experiments import preprocess_dataset, split
-from .models import load_model, load_tokenizer
-from . import seed  # needed for the random seed
+from .models import load_model, load_tokenizer, OpenAIAdapterTokenizer
 from argparse import ArgumentParser, Namespace
 from .constants import MODEL_MAP
 import random
@@ -59,7 +58,7 @@ def setup_experiment(args: Namespace, n: int = -1):
     """
     Sets up the experiment by loading the model/tokenizer and
     preprocessing the dataset. Returns a tuple of
-    `(model_name, tokenizer, model, ds, entries, start, end)`
+    `(tokenizer, model, ds, entries, start, end)`
     """
     # apply chat template, if necessary
     tokenizer = load_tokenizer(args.model)
@@ -83,3 +82,32 @@ def setup_experiment(args: Namespace, n: int = -1):
         start, end = split(n, args.splits, args.id)
 
     return tokenizer, model, ds, entries, start, end
+
+
+def setup_experiment_openai(args: Namespace, n: int = -1):
+    """
+    Sets up the experiment by loading the model/tokenizer and
+    preprocessing the dataset. Returns a tuple of
+    `(tokenizer, ds, entries, start, end)`
+    """
+    tokenizer = OpenAIAdapterTokenizer()
+
+    # load and preprocess dataset
+    ds = load_dataset()
+    n_examples = args.shot
+    entries = random.choices(list(range(len(ds))), k=n_examples)
+    ds = preprocess_dataset(
+        ds=ds,
+        n_examples=n_examples,
+        examples=entries,
+        model_name=args.model,
+        tokenizer=tokenizer,
+        system_prompt=args.prompt,
+        calculate_valid=lambda tok, prompt: True,
+    )
+    if n == -1:
+        start, end = split(len(ds), args.splits, args.id)
+    else:
+        start, end = split(n, args.splits, args.id)
+
+    return tokenizer, ds, entries, start, end

@@ -1,7 +1,13 @@
-from typing import Union, Literal
+from typing import Union, Literal, List, Dict
 import torch
 from .constants import MODEL_MAP, CHAT_TEMPLATES
 from transformers import BitsAndBytesConfig, AutoModelForCausalLM, AutoTokenizer
+import json
+
+
+class OpenAIAdapterTokenizer:
+    def apply_chat_template(self, messages: List[Dict[str, str]], **kwargs) -> str:
+        return json.dumps(messages)
 
 
 def load_tokenizer(model_name: str):
