@@ -14,7 +14,7 @@ def setup_parser() -> ArgumentParser:
         type=str,
         choices=[model for model in MODEL_MAP.keys()],
     )
-    parser.add_argument("--shot", required=True, type=int, choices=[0, 1, 5])
+    parser.add_argument("--shot", required=True, type=int, choices=[0, 1, 5, 10])
     parser.add_argument(
         "--id",
         required=False,

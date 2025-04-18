@@ -23,10 +23,15 @@ async def grade_openai(
         messages=prompt,
         temperature=GENERATION_ARGS["temperature"],
         max_tokens=GENERATION_ARGS["max_new_tokens"] + 2,
+        # max_tokens=10000,  # TODO: make this dynamically enabled for reasoning models
         n=1,  # only generate 1 response
     )
 
     decoded = completion.choices[0].message.content
+    if not decoded:
+        print("No response from model")
+        print("But reasoning was", completion.choices[0].message.reasoning_content)
+        return 0
     correct = was_correct(decoded, ds[idx])
 
     if decoded not in responses:

@@ -4,7 +4,7 @@ but with openai-compatible models
 
 Example usage:
 
-python3 scripts/experiments/openai_critic.py --model meta-llama/Meta-Llama-3-8B-Instruct --shot 0 --id 0 --splits 1 --batch_size 5
+python3 scripts/experiments/openai_critic.py --model deepseek --shot 0 --id 0 --splits 1 --batch_size 5
 """
 
 from llm_critic.core.openai_adapter import run_experiment_openai
