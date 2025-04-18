@@ -1,9 +1,9 @@
 from dataclasses import dataclass
-from llm_critic.utils.constants import SYSTEM_SUPPORTED, MAX_LEN
+from .constants import SYSTEM_SUPPORTED, MAX_LEN, DEFAULT_SYSTEM_PROMPT
 from datasets import Dataset
-from llm_critic.utils.prompts import to_n_shot_prompt
+from .prompts import to_n_shot_prompt
 from transformers import PreTrainedTokenizer
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 
 @dataclass
@@ -55,11 +55,15 @@ def preprocess_dataset(
     examples: List[int],
     model_name: str,
     tokenizer: PreTrainedTokenizer,
+    system_prompt: Optional[str] = None,
     calculate_valid=lambda tok, prompt: tok(
         prompt, return_tensors="pt"
     ).input_ids.shape[1]
     < MAX_LEN,
 ) -> Dataset:
+    if system_prompt is None:
+        system_prompt = DEFAULT_SYSTEM_PROMPT
+
     ds = ds.map(
         lambda e: {
             "prompt": to_n_shot_prompt(
@@ -69,9 +73,16 @@ def preprocess_dataset(
                 examples,
                 supports_system=SYSTEM_SUPPORTED[model_name],
                 tokenizer=tokenizer,
+                system_prompt=system_prompt,
             )
-        }
+        },
+        load_from_cache_file=False,
     )
-    ds = ds.map(lambda e: {"valid": calculate_valid(tokenizer, e["prompt"])})
-    ds = ds.map(lambda e: {"accepted": 1 if e["accepted"] else 0})
+    ds = ds.map(
+        lambda e: {"valid": calculate_valid(tokenizer, e["prompt"])},
+        load_from_cache_file=False,
+    )
+    ds = ds.map(
+        lambda e: {"accepted": 1 if e["accepted"] else 0}, load_from_cache_file=False
+    )
     return ds
