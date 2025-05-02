@@ -3,7 +3,7 @@ from llm_critic.utils import ExperimentResult, GENERATION_ARGS, LABEL_MAP
 from typing import List, Dict
 from datasets import Dataset
 from tqdm import tqdm
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, RateLimitError
 import os
 import json
 import asyncio
@@ -18,14 +18,22 @@ async def grade_openai(
     model: str = "gpt-4o",
 ) -> int:
     prompt: List[Dict[str, str]] = json.loads(ds[idx]["prompt"])
-    completion = await client.chat.completions.create(
-        model=model,
-        messages=prompt,
-        temperature=GENERATION_ARGS["temperature"],
-        max_tokens=GENERATION_ARGS["max_new_tokens"] + 2,
-        # max_tokens=10000,  # TODO: make this dynamically enabled for reasoning models
-        n=1,  # only generate 1 response
-    )
+    good = False
+    i = 0  # exponential backoff
+    while not good:
+        try:
+            completion = await client.chat.completions.create(
+                model=model,
+                messages=prompt,
+                temperature=GENERATION_ARGS["temperature"],
+                max_tokens=GENERATION_ARGS["max_new_tokens"] + 2,
+                # max_tokens=10000,  # TODO: make this dynamically enabled for reasoning models
+                n=1,  # only generate 1 response
+            )
+            good = True
+        except RateLimitError:
+            await asyncio.sleep(2**i)
+            i += 1
 
     decoded = completion.choices[0].message.content
     if not decoded:
@@ -73,10 +81,11 @@ async def run_experiment_openai(
     client = AsyncOpenAI(
         api_key=os.environ["OPENAI_API_KEY"],
         project=os.environ.get("OPENAI_PROJECT"),
-        base_url=os.environ["OPENAI_BASE_URL"],
+        base_url=os.environ.get("OPENAI_BASE_URL"),
     )
     num_correct = 0
     n_invalid = 0
+    example_set = set(examples)
     used_examples = 0
     responses = {}
     tasks = []
@@ -87,7 +96,7 @@ async def run_experiment_openai(
             return await f
 
     for idx in tqdm(range(start, end)):
-        if idx in examples:
+        if idx in example_set:
             used_examples += 1
             continue  # don't include items that were in the examples
         if not ds["valid"][idx]:

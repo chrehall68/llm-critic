@@ -22,6 +22,7 @@ MODEL_MAP = {
     "qwen25": "Qwen/Qwen2.5-7B-Instruct",
     "deepseek": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
     "deepcogito": "deepcogito/cogito-v1-preview-llama-8B",
+    "gpt41nano": "gpt-4.1-nano-2025-04-14",
 }
 SYSTEM_SUPPORTED = {
     "llama": True,
@@ -32,6 +33,7 @@ SYSTEM_SUPPORTED = {
     "openai": True,
     "deepseek": False,
     "deepcogito": True,
+    "gpt41nano": True,
 }
 MAX_LEN = 2000
 LAYER_MAP = {
@@ -61,7 +63,7 @@ TOKEN_MAP = {
 }
 
 DEFAULT_SYSTEM_PROMPT = (
-    "You are a harsh NeurIPS reviewer with many years of experience reviewing papers. "
+    "You are a NeurIPS reviewer with many years of experience reviewing papers. "
     + "You can tell whether a paper will be accepted just by looking at its abstract.\n"
     + 'You respond with either "Reviewer decision: Accept" or "Reviewer decision: Reject".'
 )

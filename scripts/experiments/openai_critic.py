@@ -8,7 +8,11 @@ python3 scripts/experiments/openai_critic.py --model deepseek --shot 0 --id 0 --
 """
 
 from llm_critic.core.openai_adapter import run_experiment_openai
-from llm_critic.utils import setup_parser, setup_experiment_openai
+from llm_critic.utils import (
+    setup_parser,
+    setup_experiment_openai,
+    setup_experiment_openai_chroma,
+)
 import pickle
 from llm_critic.utils.constants import MODEL_MAP
 import asyncio
@@ -21,6 +25,13 @@ parser.add_argument(
     required=False,
     help="how many samples to process in a batch",
 )
+parser.add_argument(
+    "--collection",
+    type=int,
+    default=-1,
+    required=False,
+    help="how many documents to have in the RAG collection; if not -1, then chromaDB is used",
+)
 
 
 if __name__ == "__main__":
@@ -28,7 +39,10 @@ if __name__ == "__main__":
     model_name = MODEL_MAP[args.model]
 
     # setup experiment
-    tokenizer, ds, entries, start, end = setup_experiment_openai(args)
+    if args.collection != -1:
+        tokenizer, ds, entries, start, end = setup_experiment_openai_chroma(args)
+    else:
+        tokenizer, ds, entries, start, end = setup_experiment_openai(args)
 
     # run experiment
     results = asyncio.run(

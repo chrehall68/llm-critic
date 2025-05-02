@@ -1,7 +1,8 @@
-from typing import Dict
+from typing import Dict, List
 from .constants import ACCEPT, DEFAULT_SYSTEM_PROMPT
 from transformers import PreTrainedTokenizer
 from datasets import Dataset
+import chromadb
 
 
 def to_zero_shot_prompt(entry: Dict[str, str]) -> str:
@@ -41,3 +42,36 @@ def to_n_shot_prompt(
         tokenize=False,
         add_generation_prompt=True,
     )
+
+
+def batched_to_n_shot_prompt(
+    n: int,
+    entries: Dict[str, List[str]],
+    ds: Dataset,
+    collection: chromadb.Collection,
+    supports_system: bool,
+    tokenizer: PreTrainedTokenizer,
+    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+) -> List[str]:
+    keys = list(entries.keys())
+    num_entries = len(entries[keys[0]])
+    examples = {"ids": [[] for _ in range(num_entries)]}
+    if n > 0:
+        examples = collection.query(
+            query_texts=[abstract for abstract in entries["abstract"]],
+            include=[],
+            n_results=n,
+        )
+
+    return [
+        to_n_shot_prompt(
+            n,
+            {k: entries[k][i] for k in keys},
+            ds,
+            [int(el) for el in examples["ids"][i]],
+            supports_system,
+            tokenizer,
+            system_prompt,
+        )
+        for i in range(num_entries)
+    ]

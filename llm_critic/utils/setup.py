@@ -1,5 +1,7 @@
+import chromadb
+import chromadb.utils.embedding_functions
 from llm_critic.data import load_dataset
-from .experiments import preprocess_dataset, split
+from .experiments import preprocess_dataset, split, preprocess_dataset_chroma
 from .models import load_model, load_tokenizer, OpenAIAdapterTokenizer
 from argparse import ArgumentParser, Namespace
 from .constants import MODEL_MAP
@@ -67,7 +69,7 @@ def setup_experiment(args: Namespace, n: int = -1):
     # load and preprocess dataset
     ds = load_dataset()
     n_examples = args.shot
-    entries = random.choices(list(range(len(ds))), k=n_examples)
+    entries = random.sample(list(range(len(ds))), k=n_examples)
     ds = preprocess_dataset(
         ds=ds,
         n_examples=n_examples,
@@ -95,7 +97,7 @@ def setup_experiment_openai(args: Namespace, n: int = -1):
     # load and preprocess dataset
     ds = load_dataset()
     n_examples = args.shot
-    entries = random.choices(list(range(len(ds))), k=n_examples)
+    entries = random.sample(list(range(len(ds))), k=n_examples)
     ds = preprocess_dataset(
         ds=ds,
         n_examples=n_examples,
@@ -111,3 +113,52 @@ def setup_experiment_openai(args: Namespace, n: int = -1):
         start, end = split(n, args.splits, args.id)
 
     return tokenizer, ds, entries, start, end
+
+
+def setup_experiment_openai_chroma(args: Namespace, n: int = -1):
+    """
+    Sets up the experiment by loading the model/tokenizer and
+    preprocessing the dataset. Returns a tuple of
+    `(tokenizer, ds, entries, start, end)`
+    """
+    tokenizer = OpenAIAdapterTokenizer()
+
+    # load and preprocess dataset
+    ds = load_dataset()
+    n_examples = args.shot
+    num_collection_examples = args.collection
+    chosen_examples = random.sample(list(range(len(ds))), k=num_collection_examples)
+
+    # create chroma client and collection, on GPU
+    chromadb.get_settings().allow_reset = True
+    client = chromadb.Client()
+    collection = client.create_collection(
+        f"{args.model}_{args.shot}_{args.id}",
+        embedding_function=chromadb.utils.embedding_functions.SentenceTransformerEmbeddingFunction(
+            device="cuda"
+        ),
+    )
+    collection.add(
+        documents=[ds[e]["abstract"] for e in chosen_examples],
+        ids=[str(e) for e in chosen_examples],
+    )
+
+    ds = preprocess_dataset_chroma(
+        ds=ds,
+        n_examples=n_examples,
+        collection=collection,
+        model_name=args.model,
+        tokenizer=tokenizer,
+        system_prompt=args.prompt,
+        calculate_valid=lambda tok, prompt: True,
+    )
+
+    # cleanup
+    client.reset()
+
+    if n == -1:
+        start, end = split(len(ds), args.splits, args.id)
+    else:
+        start, end = split(n, args.splits, args.id)
+
+    return tokenizer, ds, chosen_examples, start, end
