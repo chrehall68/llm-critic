@@ -45,7 +45,7 @@ def run_baseline(
         overwrite_output_dir=True,
         num_train_epochs=3,
         logging_steps=50,
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",
     )
     trainer = Trainer(
         model,
@@ -53,7 +53,7 @@ def run_baseline(
         data_collator=DataCollatorWithPadding(tokenizer),
         train_dataset=train,
         eval_dataset=dev,
-        tokenizer=tokenizer,
+        # tokenizer=tokenizer,
         compute_metrics=lambda model_preds: metrics.compute(
             predictions=model_preds.predictions.argmax(axis=-1),
             references=model_preds.label_ids,
