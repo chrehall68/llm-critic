@@ -1,4 +1,5 @@
-datasets
-transformers
+datasets==2.14.7
+transformers==4.51.3
+captum==0.8.0
+accelerate==1.8.1
 vllm
-captum
