@@ -72,25 +72,33 @@ async def peer_review(
     reviewers = [r.strip() for r in reviewers]
 
     # forward to reviewers
-    reviewer_recommendations = await asyncio.gather(
-        *[
-            try_request(
-                dict(
-                    model=reviewer_models[reviewer],
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": reviewer_name_to_reviewer[reviewer].prompt
-                            + abstract,
-                        },
-                    ],
-                    temperature=1,
-                    max_tokens=2048,
+    tasks = []
+    for reviewer in reviewers:
+        if reviewer in reviewer_name_to_reviewer:  # just in case
+            tasks.append(
+                try_request(
+                    dict(
+                        model=reviewer_models[reviewer],
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": reviewer_name_to_reviewer[reviewer].prompt
+                                + abstract,
+                            },
+                        ],
+                        temperature=1,
+                        max_tokens=2048,
+                    )
                 )
             )
-            for reviewer in reviewers
-        ]
-    )
+    if not tasks:
+        # no reviewers were assigned, so just wrong
+        return PeerReviewResult(
+            initial_editor_response=editor_response.choices[0].message.content,
+            reviewers={},
+            final_decision="",
+        )
+    reviewer_recommendations = await asyncio.gather(*tasks)
 
     # finally ask the final "editor"
     editor_recommendation = await try_request(
