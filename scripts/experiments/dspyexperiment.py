@@ -1,15 +1,11 @@
-from tokenizers import Tokenizer
 import llm_critic.core.dspy_adapter as adapter
 import dspy
-from dspy.teleprompt.mipro_optimizer import MIPRO
+from dspy.teleprompt.mipro_optimizer_v2 import MIPROv2
 from dspy.predict.chain_of_thought import ChainOfThought
 from dspy.predict.predict import Predict
 import argparse
 import os
 import pickle as pk
-
-VLLM_API_KEY = os.environ.get("VLLM_API_KEY", "*")
-VLLM_API_BASE = os.environ.get("VLLM_API_BASE", "http://localhost:8001/v1/")
 
 
 class PeerReadSignature(dspy.Signature):
@@ -48,19 +44,24 @@ if __name__ == "__main__":
     parser.add_argument("--cot", action="store_true")
     parser.add_argument("--concurrency", type=int, default=1)
     parser.add_argument("--n", type=int, default=-1)
+
+    # compatible with local llms too
+    parser.add_argument(
+        "--model", type=str, help="The model to run, without the leading openai/"
+    )
     args = parser.parse_args()
 
     # configure LM
-    llama = dspy.OpenAI(
-        model="meta-llama/Meta-Llama-3-8B-Instruct",
+    client = dspy.LM(
+        model="openai/" + args.model,
         max_tokens=512,
         temperature=0.0,
-        api_base=VLLM_API_BASE,
-        api_key=VLLM_API_KEY,
+        api_key=os.environ["OPENAI_API_KEY"],
+        api_base=os.environ.get("OPENAI_BASE_URL"),
         model_type="chat",
         seed=2024,
     )
-    dspy.settings.configure(lm=llama)
+    dspy.settings.configure(lm=client)
 
     # load ds
     ds = adapter.PeerReadDspy(trainsize=0.1, devsize=0.05, inputs=["abstract"])
@@ -70,32 +71,22 @@ if __name__ == "__main__":
     )
 
     # get all tokens and count them
-    tokenizer: Tokenizer = Tokenizer.from_pretrained(
-        "meta-llama/Meta-Llama-3-8B-Instruct"
-    )
-    all_encodings = tokenizer.encode_batch(
-        list(map(lambda ex: ex["abstract"], test_ds))
-    )
-    assert len(all_encodings) == len(test_ds)
-
     # now sum up lengths
-    total_length = sum(len(x.tokens) for x in all_encodings)
-    print("Total tokens in test dataset:", total_length)
+    print("Total tokens in test dataset ~", sum(len(e["abstract"]) for e in ds.test))
 
-    # prompter = dspy.teleprompt.KNNFewShot(KNN, 5, ds.train)
-    # prompter = dspy.teleprompt.BootstrapFewShot(adapter.peerread_metric, max_labeled_demos=5, max_bootstrapped_demos=0)
-    prompter = MIPRO(
-        metric=adapter.peerread_metric, prompt_model=llama, task_model=llama
+    prompter = MIPROv2(
+        metric=adapter.peerread_metric,
+        prompt_model=client,
+        task_model=client,
+        num_threads=args.concurrency,
     )
     module = ZeroShotModule() if not args.cot else CoTModule()
     optimized_program = prompter.compile(
         student=module,
         trainset=ds.train,
-        num_batches=10,
+        num_trials=10,
         max_bootstrapped_demos=1,
         max_labeled_demos=5,
-        program_aware_proposer=False,
-        eval_kwargs={"num_threads": args.concurrency},
     )
 
     optimized_program.save("output_program")
@@ -107,6 +98,6 @@ if __name__ == "__main__":
             module=module, ds=test_ds, n_threads=args.concurrency
         )
     except:
-        print(llama.inspect_history())
+        print(client.inspect_history())
 
     pk.dump((score, outputs, results), open("results.pk", "wb"))
