@@ -72,25 +72,33 @@ async def peer_review(
     reviewers = [r.strip() for r in reviewers]
 
     # forward to reviewers
-    reviewer_recommendations = await asyncio.gather(
-        *[
-            try_request(
-                dict(
-                    model=reviewer_models[reviewer],
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": reviewer_name_to_reviewer[reviewer].prompt
-                            + abstract,
-                        },
-                    ],
-                    temperature=1,
-                    max_tokens=2048,
+    tasks = []
+    for reviewer in reviewers:
+        if reviewer in reviewer_name_to_reviewer:  # just in case
+            tasks.append(
+                try_request(
+                    dict(
+                        model=reviewer_models[reviewer],
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": reviewer_name_to_reviewer[reviewer].prompt
+                                + abstract,
+                            },
+                        ],
+                        temperature=1,
+                        max_tokens=2048,
+                    )
                 )
             )
-            for reviewer in reviewers
-        ]
-    )
+    if not tasks:
+        # no reviewers were assigned, so just wrong
+        return PeerReviewResult(
+            initial_editor_response=editor_response.choices[0].message.content,
+            reviewers={},
+            final_decision="",
+        )
+    reviewer_recommendations = await asyncio.gather(*tasks)
 
     # finally ask the final "editor"
     editor_recommendation = await try_request(
@@ -148,8 +156,8 @@ async def run_experiment_async(
             "was_correct": correct,
         }
 
-    requests = [throttler(review_and_score(i)) for i in range(start, end + 1)]
-    results = []
+    requests = [throttler(review_and_score(i)) for i in range(start, end)]
+    results: list[dict] = []
     correct = 0
     for result in (prog := tqdm(asyncio.as_completed(requests), total=len(requests))):
         results.append(await result)
@@ -167,6 +175,18 @@ def run_experiment(
     editor_model: str,
     num_concurrent: int = 10,
 ):
+    """
+    Runs the agentic peer review experiment
+
+    Arguments:
+        - ds: Dataset - the dataset
+        - start: int - the index of the first sample to evaluate on, inclusive
+        - end: int - the index of the last sample to evaluate on, exclusive
+        - reviewer_models: dict[str, str] - the models to use for reviewers
+        - editor_model: str - the model to use for the editor
+        - num_concurrent: int = 10 - the number of concurrent agentic peer review
+          processes to run at once
+    """
     return asyncio.run(
         run_experiment_async(
             ds, start, end, reviewer_models, editor_model, num_concurrent

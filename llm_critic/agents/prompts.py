@@ -134,8 +134,7 @@ def make_initial_editor_prompt() -> str:
     return (
         """You are an experienced researcher with a PhD and many years in the field. """
         + """You are the initial editor of a paper. Given an abstract, your task is to forward it to the appropriate reviewers. """
-        + """Choose at least one reviewer. """
-        + """You will output only the reviewers' names, exactly as they appear, as a comma-separated list.\n"""
+        + """You will output only the reviewers' names, exactly as they appear, as a comma-separated list. Below is a comprehensive list of all available reviewers. Choose at least one reviewer out of the list.\n"""
         + """Reviewer | Description\n"""
         + """-------- | --------\n"""
         + reviewers_formatted
