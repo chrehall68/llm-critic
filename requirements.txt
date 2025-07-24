@@ -4,3 +4,6 @@ captum==0.8.0
 accelerate==1.8.1
 chromadb==1.0.15
 dspy==2.6.3
+evaluate==0.4.4
+scikit-learn==1.7.1
+IPython==9.4.0
